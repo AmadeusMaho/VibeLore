@@ -4,6 +4,7 @@ Player.__index = Player
 local SPRITE_SIZE = 192
 local WALK_FPS = 10
 local ATTACK_FPS = 10
+local playerHitSound
 
 function Player.new(x, y)
     local self = setmetatable({}, Player)
@@ -18,7 +19,19 @@ function Player.new(x, y)
     self.attackRange = 120
     self.attackCooldown = 0.5
     self.critChance = 0.02
-    self.critMultiplier = 2
+    self.critMultiplier = 1.5
+    self.armor = 0
+    self.level = 1
+    self.xp = 0
+    self.xpToNext = 5
+    self.statPoints = 0
+    self.strength = 0
+    self.agility = 0
+    self.intelligence = 0
+    self.constitution = 0
+    self.mana = 0
+    self.maxMana = 0
+    self.magicDamage = 0
     self.attackTimer = 0
     self.isAttacking = false
     self.attackDuration = 0.4
@@ -34,10 +47,17 @@ function Player.new(x, y)
     self.state = "idle"
     self.isMoving = false
     self.hitEnemiesThisSwing = {}
+    self.justLeveledUp = false
+    self.flashTimer = 0
     return self
 end
 
 function Player:loadAssets()
+    if not playerHitSound then
+        local ok, src = pcall(love.audio.newSource, "sounds/HitPlayer.wav", "static")
+        if ok then playerHitSound = src end
+    end
+
     local walkPath = "sprites/player_walk.png"
     local attackPath = "sprites/player_attack.png"
 
@@ -65,6 +85,7 @@ end
 
 function Player:update(dt, canMove)
     self.attackTimer = math.max(0, self.attackTimer - dt)
+    self.flashTimer = math.max(0, self.flashTimer - dt)
     self:updateAttackAngle()
 
     if self.isAttacking then
@@ -169,6 +190,50 @@ end
 
 function Player:takeDamage(amount)
     self.health = math.max(0, self.health - amount)
+    if playerHitSound then
+        playerHitSound:stop()
+        playerHitSound:play()
+    end
+end
+
+function Player:gainXP(amount)
+    self.xp = self.xp + amount
+    self.justLeveledUp = false
+    while self.xp >= self.xpToNext do
+        self.xp = self.xp - self.xpToNext
+        self.level = self.level + 1
+        self.xpToNext = 5 * self.level
+        self.statPoints = self.statPoints + 3
+        self.justLeveledUp = true
+    end
+    self:recalcStats()
+end
+
+function Player:recalcStats()
+    self.attackDamage = 2 + self.level - 1 + math.floor(self.strength * 0.5)
+    self.speed = 150 * (1 + self.agility * 0.001)
+    self.maxHealth = 100 + (self.level - 1) * 10 + self.constitution * 10
+    self.maxMana = self.intelligence * 1
+    self.magicDamage = self.intelligence
+    self.armor = (self.level - 1) + math.floor(self.strength * 0.5)
+    if self.health > self.maxHealth then self.health = self.maxHealth end
+    if self.mana > self.maxMana then self.mana = self.maxMana end
+end
+
+function Player:allocateStat(stat)
+    if self.statPoints <= 0 then return false end
+    if stat == "str" then
+        self.strength = self.strength + 1
+    elseif stat == "agi" then
+        self.agility = self.agility + 1
+    elseif stat == "int" then
+        self.intelligence = self.intelligence + 1
+    elseif stat == "con" then
+        self.constitution = self.constitution + 1
+    end
+    self.statPoints = self.statPoints - 1
+    self:recalcStats()
+    return true
 end
 
 function Player:isDead()
@@ -191,7 +256,11 @@ function Player:draw()
     end
 
     if sheet and frames and frames[self.currentFrame] then
-        love.graphics.setColor(1, 1, 1)
+        if self.flashTimer > 0 then
+            love.graphics.setColor(1, 0.3, 0.3)
+        else
+            love.graphics.setColor(1, 1, 1)
+        end
         local scaleX = 1
         if self.facing == "left" then
             scaleX = -1

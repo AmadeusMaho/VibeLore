@@ -21,15 +21,15 @@ function Combat.resolveAttack(player, enemies)
             local dy = enemy.y - player.y
             local dist = math.sqrt(dx * dx + dy * dy)
             if dist > 0 then
-                kbx = (dx / dist) * 60
-                kby = (dy / dist) * 60
+                kbx = (dx / dist) * 25
+                kby = (dy / dist) * 25
             end
 
-            local baseDmg = love.math.random(1, 2)
+            local baseDmg = math.floor(player.attackDamage + love.math.random(0, 1))
             local isCrit = math.random() < player.critChance
             local dmg = baseDmg
             if isCrit then
-                dmg = baseDmg * player.critMultiplier
+                dmg = math.floor(baseDmg * player.critMultiplier)
             end
 
             enemy:takeDamage(dmg, kbx, kby)
@@ -42,12 +42,24 @@ end
 function Combat.checkEnemyAttacks(player, enemies)
     local totalDamage = 0
     for _, enemy in ipairs(enemies) do
-        if enemy:canAttack() then
-            local dx = player.x + player.width / 2 - (enemy.x + enemy.width / 2)
-            local dy = player.y + player.height / 2 - (enemy.y + enemy.height / 2)
-            local dist = math.sqrt(dx * dx + dy * dy)
-            if dist < enemy.attackRange + 20 then
-                totalDamage = totalDamage + enemy:doAttack()
+        if enemy.alive then
+            if enemy.state == "charge_attack" then
+                local dx = player.x + player.width / 2 - (enemy.x + enemy.width / 2)
+                local dy = player.y + player.height / 2 - (enemy.y + enemy.height / 2)
+                local dist = math.sqrt(dx * dx + dy * dy)
+                if dist < enemy.attackRange + 40 then
+                    local chargeDmg = math.random(3, 10)
+                    totalDamage = totalDamage + chargeDmg
+                    enemy.state = "chase"
+                    enemy.isCharging = false
+                end
+            elseif enemy:canAttack() then
+                local dx = player.x + player.width / 2 - (enemy.x + enemy.width / 2)
+                local dy = player.y + player.height / 2 - (enemy.y + enemy.height / 2)
+                local dist = math.sqrt(dx * dx + dy * dy)
+                if dist < enemy.attackRange + 20 then
+                    totalDamage = totalDamage + enemy:doAttack()
+                end
             end
         end
     end

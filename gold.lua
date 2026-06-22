@@ -22,7 +22,7 @@ end
 function Gold:update(dt, playerX, playerY)
     if self.spawnTimer > 0 then
         self.spawnTimer = self.spawnTimer - dt
-        return
+        return 0
     end
 
     self.bobTimer = self.bobTimer + dt

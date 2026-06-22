@@ -26,6 +26,8 @@ local spawnInterval
 local aliveEnemies
 local grassCanvas
 local bgMusic
+local crtShader
+local gameCanvas
 
 function GameScene.new()
     local self = setmetatable({}, GameScene)
@@ -66,6 +68,12 @@ function GameScene.enter()
     generateGrassTexture()
     generateCursor()
     loadMusic()
+
+    local ok, shader = pcall(love.graphics.newShader, "shaders/crt.glsl")
+    if ok then crtShader = shader end
+
+    gameCanvas = love.graphics.newCanvas(love.graphics.getWidth(), love.graphics.getHeight())
+    gameCanvas:setFilter("nearest", "nearest")
 end
 
 local GRASS_TILE = 256
@@ -220,21 +228,31 @@ function GameScene.update(dt)
 
     local hitEnemies = Combat.resolveAttack(player, enemies)
     for _, hit in ipairs(hitEnemies) do
-        local color = hit.isCrit and {1, 0.8, 0} or {1, 0.3, 0.3}
         ui:addDamageNumber(hit.enemy.x, hit.enemy.y, hit.damage, true, hit.isCrit)
         ui:shake(hit.isCrit and 5 or 3, hit.isCrit and 0.12 or 0.08)
         if not hit.enemy.alive then
             score = score + 10
             local goldAmount = math.random(1, 3)
             table.insert(goldItems, Gold.new(hit.enemy.x, hit.enemy.y, goldAmount))
+            player:gainXP(1)
+            ui:addXPNumber(hit.enemy.x + 30, hit.enemy.y - 20, 1)
+            if player.justLeveledUp then
+                ui:showLevelUp(player.level)
+                player.justLeveledUp = false
+            end
         end
     end
 
     local damage = Combat.checkEnemyAttacks(player, enemies)
     if damage > 0 then
-        player:takeDamage(damage)
-        ui:addDamageNumber(player.x, player.y, damage, false)
-        ui:shake(5, 0.15)
+        local finalDamage = math.max(0, damage - player.armor)
+        if finalDamage > 0 then
+            player:takeDamage(finalDamage)
+            player.flashTimer = 0.7
+            ui:addDamageNumber(player.x, player.y, finalDamage, false)
+            ui:shake(5, 0.15)
+            ui:triggerDamageVignette()
+        end
     end
 
     aliveEnemies = 0
@@ -268,6 +286,9 @@ function GameScene.update(dt)
 end
 
 function GameScene.draw()
+    love.graphics.setCanvas(gameCanvas)
+    love.graphics.clear(0, 0, 0, 1)
+
     love.graphics.push()
     love.graphics.scale(camera.zoom, camera.zoom)
     love.graphics.translate(-camera.x, -camera.y)
@@ -312,12 +333,45 @@ function GameScene.draw()
         love.graphics.printf("Puntos: " .. score, 0, love.graphics.getHeight() / 2, love.graphics.getWidth(), "center")
         love.graphics.printf("Presiona R para reiniciar", 0, love.graphics.getHeight() / 2 + 40, love.graphics.getWidth(), "center")
     end
+
+    love.graphics.setCanvas()
+
+    if crtShader then
+        crtShader:send("time", love.timer.getTime())
+        love.graphics.setShader(crtShader)
+    end
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(gameCanvas, 0, 0)
+    if crtShader then
+        love.graphics.setShader()
+    end
 end
 
 function GameScene.keypressed(key)
     if key == "escape" then
-        love.event.quit()
+        if ui:isCharScreenOpen() then
+            ui:toggleCharScreen()
+        else
+            love.event.quit()
+        end
+        return
     end
+
+    if key == "c" then
+        ui:toggleCharScreen()
+        return
+    end
+
+    if ui:isCharScreenOpen() then
+        ui:handleCharInput(key, player)
+        return
+    end
+
+    if key == "r" and gameOver then
+        GameScene.enter()
+        return
+    end
+
     if key == "space" then
         if player:attack() then
             local hitEnemies = Combat.resolveAttack(player, enemies)
@@ -326,6 +380,14 @@ function GameScene.keypressed(key)
                 ui:shake(hit.isCrit and 5 or 3, hit.isCrit and 0.12 or 0.08)
                 if not hit.enemy.alive then
                     score = score + 10
+                    local goldAmount = math.random(1, 3)
+                    table.insert(goldItems, Gold.new(hit.enemy.x, hit.enemy.y, goldAmount))
+                    player:gainXP(1)
+                    ui:addXPNumber(hit.enemy.x + 30, hit.enemy.y - 20, 1)
+                    if player.justLeveledUp then
+                        ui:showLevelUp(player.level)
+                        player.justLeveledUp = false
+                    end
                 end
             end
         end
