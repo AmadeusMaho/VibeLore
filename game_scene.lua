@@ -348,19 +348,22 @@ function GameScene.draw()
 
     local entityY = player.y + player.height / 2
 
-    local allProps = {}
-    for _, t in ipairs(Trees.getAll()) do
-        allProps[#allProps + 1] = { y = t.y, draw = function() Trees.drawSingle(t) end }
-    end
     for _, r in ipairs(Rocks.getAll()) do
-        allProps[#allProps + 1] = { y = r.y, draw = function() love.graphics.setColor(1, 1, 1) love.graphics.draw(r.img, r.x, r.y, 0, 1, 1, r.w / 2, r.h) end }
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(r.img, r.x, r.y, 0, 1, 1, r.w / 2, r.h)
     end
     for _, b in ipairs(Bushes.getAll()) do
-        allProps[#allProps + 1] = { y = b.y, draw = function() love.graphics.setColor(1, 1, 1) love.graphics.draw(b.img, b.quad, b.x, b.y, 0, 1, 1, 64, 128) end }
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(b.img, b.quad, b.x, b.y, 0, 1, 1, 64, 128)
     end
-    table.sort(allProps, function(a, b) return a.y < b.y end)
 
-    for _, prop in ipairs(allProps) do
+    local allTrees = {}
+    for _, t in ipairs(Trees.getAll()) do
+        allTrees[#allTrees + 1] = { y = t.y, draw = function() Trees.drawSingle(t) end }
+    end
+    table.sort(allTrees, function(a, b) return a.y < b.y end)
+
+    for _, prop in ipairs(allTrees) do
         if prop.y <= entityY then
             prop.draw()
         end
@@ -372,7 +375,7 @@ function GameScene.draw()
         enemy:draw()
     end
 
-    for _, prop in ipairs(allProps) do
+    for _, prop in ipairs(allTrees) do
         if prop.y > entityY then
             prop.draw()
         end
