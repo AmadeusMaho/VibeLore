@@ -471,7 +471,7 @@ end
 
 function UI:drawControls()
     love.graphics.setColor(1, 1, 1, 0.5)
-    love.graphics.print("WASD: Mover | SHIFT: Correr | SPACE/Click: Atacar | C: Stats", 20, love.graphics.getHeight() - 25)
+    love.graphics.print("WASD: Mover | SHIFT: Correr | SPACE/Click: Atacar | C: Stats | TAB: Inventario", 20, love.graphics.getHeight() - 25)
 end
 
 function UI:isAttackPressed()

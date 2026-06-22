@@ -7,6 +7,7 @@ local Trees = require("trees")
 local Rocks = require("rocks")
 local Bushes = require("bushes")
 local Pond = require("pond")
+local Inventory = require("inventory")
 
 local GameScene = {}
 GameScene.__index = GameScene
@@ -86,6 +87,7 @@ function GameScene.enter()
     generateGrassTexture()
     generateCursor()
     loadMusic()
+    Inventory.load()
 
     local ok, shader = pcall(love.graphics.newShader, "shaders/crt.glsl")
     if ok then crtShader = shader end
@@ -246,7 +248,7 @@ function GameScene.update(dt)
 
     updateCamera(dt)
 
-    local canMove = not player.isAttacking
+    local canMove = not player.isAttacking and not Inventory.getIsOpen()
     player:update(dt, canMove, resolveCollision, camera.x, camera.y, camera.zoom)
     player.x = math.max(0, math.min(MAP_WIDTH - player.width, player.x))
     player.y = math.max(0, math.min(MAP_HEIGHT - player.height, player.y))
@@ -388,6 +390,7 @@ function GameScene.draw()
     love.graphics.pop()
 
     ui:draw(player, aliveEnemies, score, goldCount, camera)
+    Inventory.draw()
 
     if gameOver then
         love.graphics.setColor(0, 0, 0, 0.7)
@@ -416,13 +419,22 @@ end
 
 function GameScene.keypressed(key)
     if key == "escape" then
-        if ui:isCharScreenOpen() then
+        if Inventory.getIsOpen() then
+            Inventory.toggle()
+        elseif ui:isCharScreenOpen() then
             ui:toggleCharScreen()
         else
             love.event.quit()
         end
         return
     end
+
+    if key == "tab" then
+        Inventory.toggle()
+        return
+    end
+
+    if Inventory.getIsOpen() then return end
 
     if key == "c" then
         ui:toggleCharScreen()
@@ -465,6 +477,10 @@ function GameScene.keyreleased(key)
 end
 
 function GameScene.mousepressed(x, y, button)
+    if Inventory.getIsOpen() then
+        Inventory.mousepressed(x, y)
+        return
+    end
     ui:mousepressed(x, y, button)
 end
 
