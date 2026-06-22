@@ -1,6 +1,7 @@
 local Bushes = {}
 local Trees = require("trees")
 local Rocks = require("rocks")
+local Pond = require("pond")
 
 local BUSH_COUNT = 40
 local SPAWN_SAFE_RADIUS = 250
@@ -66,6 +67,11 @@ function Bushes.generate(mapW, mapH, playerX, playerY)
                 end
             end
             if not tooClose then
+                if Pond.checkCollision(x - FRAME_W / 2, y - FRAME_H, FRAME_W, FRAME_H) then
+                    tooClose = true
+                end
+            end
+            if not tooClose then
                 local imgData = bushImages[math.random(1, #bushImages)]
                 local frameIdx = math.random(1, #imgData.frames)
                 bushes[#bushes + 1] = {
@@ -79,14 +85,26 @@ function Bushes.generate(mapW, mapH, playerX, playerY)
     end
 end
 
+function Bushes.getAll()
+    return bushes
+end
+
 function Bushes.drawBelow(entityY)
     for _, b in ipairs(bushes) do
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.draw(b.img, b.quad, b.x, b.y, 0, 1, 1, FRAME_W / 2, FRAME_H)
+        if b.y <= entityY then
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.draw(b.img, b.quad, b.x, b.y, 0, 1, 1, FRAME_W / 2, FRAME_H)
+        end
     end
 end
 
 function Bushes.drawAbove(entityY)
+    for _, b in ipairs(bushes) do
+        if b.y > entityY then
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.draw(b.img, b.quad, b.x, b.y, 0, 1, 1, FRAME_W / 2, FRAME_H)
+        end
+    end
 end
 
 return Bushes

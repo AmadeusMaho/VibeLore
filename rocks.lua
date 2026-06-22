@@ -1,4 +1,5 @@
 local Rocks = {}
+local Pond = require("pond")
 
 local ROCK_COUNT = 15
 local TRUNK_WIDTH = 16
@@ -34,19 +35,21 @@ function Rocks.generate(mapW, mapH, playerX, playerY)
         local dx = x - cx
         local dy = y - cy
         if math.sqrt(dx * dx + dy * dy) > SPAWN_SAFE_RADIUS then
-            local imgIdx = math.random(1, #rockImages)
-            local img = rockImages[imgIdx]
-            local w = img:getWidth()
-            local h = img:getHeight()
-            rocks[#rocks + 1] = {
-                x = x,
-                y = y,
-                img = img,
-                w = w,
-                h = h,
-                trunkW = TRUNK_WIDTH,
-                trunkH = TRUNK_HEIGHT,
-            }
+            if not Pond.checkCollision(x - TRUNK_WIDTH / 2, y - TRUNK_HEIGHT / 2, TRUNK_WIDTH, TRUNK_HEIGHT) then
+                local imgIdx = math.random(1, #rockImages)
+                local img = rockImages[imgIdx]
+                local w = img:getWidth()
+                local h = img:getHeight()
+                rocks[#rocks + 1] = {
+                    x = x,
+                    y = y,
+                    img = img,
+                    w = w,
+                    h = h,
+                    trunkW = TRUNK_WIDTH,
+                    trunkH = TRUNK_HEIGHT,
+                }
+            end
         end
     end
 end

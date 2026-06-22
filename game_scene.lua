@@ -6,6 +6,7 @@ local UI = require("ui")
 local Trees = require("trees")
 local Rocks = require("rocks")
 local Bushes = require("bushes")
+local Pond = require("pond")
 
 local GameScene = {}
 GameScene.__index = GameScene
@@ -30,6 +31,7 @@ local spawnInterval
 local function resolveCollision(x, y, w, h)
     x, y = Trees.resolveCollision(x, y, w, h)
     x, y = Rocks.resolveCollision(x, y, w, h)
+    x, y = Pond.resolveCollision(x, y, w, h)
     return x, y
 end
 local aliveEnemies
@@ -69,6 +71,7 @@ function GameScene.enter()
 
     groundTiles = {}
     generateGround()
+    Pond.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
     Trees.load()
     Trees.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
     Rocks.load()
@@ -195,6 +198,9 @@ function spawnEnemyNearPlayer()
         return
     end
     if Rocks.checkCollision(x, y, enemyW, enemyH) then
+        return
+    end
+    if Pond.checkCollision(x, y, enemyW, enemyH) then
         return
     end
 
@@ -338,10 +344,27 @@ function GameScene.draw()
     love.graphics.setColor(0.18, 0.25, 0.12)
     love.graphics.rectangle("line", 10, 10, MAP_WIDTH - 20, MAP_HEIGHT - 20)
 
+    Pond.draw()
+
     local entityY = player.y + player.height / 2
-    Trees.drawBelow(entityY)
-    Rocks.drawBelow(entityY)
-    Bushes.drawBelow(entityY)
+
+    local allProps = {}
+    for _, t in ipairs(Trees.getAll()) do
+        allProps[#allProps + 1] = { y = t.y, draw = function() Trees.drawSingle(t) end }
+    end
+    for _, r in ipairs(Rocks.getAll()) do
+        allProps[#allProps + 1] = { y = r.y, draw = function() love.graphics.setColor(1, 1, 1) love.graphics.draw(r.img, r.x, r.y, 0, 1, 1, r.w / 2, r.h) end }
+    end
+    for _, b in ipairs(Bushes.getAll()) do
+        allProps[#allProps + 1] = { y = b.y, draw = function() love.graphics.setColor(1, 1, 1) love.graphics.draw(b.img, b.quad, b.x, b.y, 0, 1, 1, 64, 128) end }
+    end
+    table.sort(allProps, function(a, b) return a.y < b.y end)
+
+    for _, prop in ipairs(allProps) do
+        if prop.y <= entityY then
+            prop.draw()
+        end
+    end
 
     player:draw()
 
@@ -349,7 +372,11 @@ function GameScene.draw()
         enemy:draw()
     end
 
-    Trees.drawAbove(entityY)
+    for _, prop in ipairs(allProps) do
+        if prop.y > entityY then
+            prop.draw()
+        end
+    end
 
     for _, gold in ipairs(goldItems) do
         gold:draw()
