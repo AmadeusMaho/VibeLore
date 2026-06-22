@@ -1,6 +1,8 @@
 local Player = {}
 Player.__index = Player
 
+local Inventory = require("inventory")
+
 local SPRITE_SIZE = 192
 local WALK_FPS = 10
 local ATTACK_FPS = 10
@@ -216,12 +218,12 @@ function Player:gainXP(amount)
 end
 
 function Player:recalcStats()
-    self.attackDamage = 2 + self.level - 1 + math.floor(self.strength * 0.5)
+    self.attackDamage = 2 + self.level - 1 + math.floor(self.strength * 0.5) + Inventory.getStatBonus("damage")
     self.speed = 150 * (1 + self.agility * 0.001)
-    self.maxHealth = 100 + (self.level - 1) * 10 + self.constitution * 10
+    self.maxHealth = 100 + (self.level - 1) * 10 + self.constitution * 10 + Inventory.getStatBonus("hp")
     self.maxMana = self.intelligence * 1
     self.magicDamage = self.intelligence
-    self.armor = (self.level - 1) + math.floor(self.strength * 0.5)
+    self.armor = (self.level - 1) + math.floor(self.strength * 0.5) + Inventory.getStatBonus("armor")
     if self.health > self.maxHealth then self.health = self.maxHealth end
     if self.mana > self.maxMana then self.mana = self.maxMana end
 end

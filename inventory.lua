@@ -7,6 +7,7 @@ local SLOT_PAD = 8
 
 local items = {}
 local equipment = {
+    weapon = nil,
     helmet = nil,
     armor = nil,
     boots = nil,
@@ -33,6 +34,7 @@ local RARITY_COLORS = {
 }
 
 local EQUIP_SLOTS = {
+    { id = "weapon",   label = "Arma",     icon = "sword",   x = 0, y = 0 },
     { id = "helmet",  label = "Casco",    icon = "hat",     x = 0, y = 0 },
     { id = "armor",   label = "Armadura", icon = "chest",   x = 0, y = 0 },
     { id = "gloves",  label = "Guantes",  icon = "hand",    x = 0, y = 0 },
@@ -197,6 +199,13 @@ local function drawSlotIcon(x, y, size, iconType)
         love.graphics.setColor(0.2, 0.2, 0.25, 0.5)
         love.graphics.rectangle("fill", cx - s * 0.4, cy - s * 0.6, s * 0.8, s * 0.15)
         love.graphics.rectangle("fill", cx - s * 0.2, cy - s * 0.2, s * 0.4, s * 0.5, 1, 1)
+    elseif iconType == "sword" then
+        love.graphics.setColor(0.6, 0.6, 0.65, 0.5)
+        love.graphics.rectangle("fill", cx - s * 0.08, cy - s * 0.9, s * 0.16, s * 1.4, 1, 1)
+        love.graphics.setColor(0.45, 0.3, 0.15, 0.5)
+        love.graphics.rectangle("fill", cx - s * 0.35, cy + s * 0.3, s * 0.7, s * 0.12, 2, 2)
+        love.graphics.setColor(0.35, 0.22, 0.1, 0.5)
+        love.graphics.rectangle("fill", cx - s * 0.06, cy + s * 0.42, s * 0.12, s * 0.35, 1, 1)
     elseif iconType == "chest" then
         love.graphics.setColor(0.4, 0.35, 0.25, 0.5)
         love.graphics.rectangle("fill", cx - s * 0.7, cy - s * 0.8, s * 1.4, s * 1.6, 4, 4)
@@ -282,6 +291,7 @@ function Inventory.mousepressed(mx, my)
         local equipStartY = panelY + 40
 
         local layout = {
+            { id = "weapon",  gx = 0, gy = 0 },
             { id = "helmet",  gx = 1, gy = 0 },
             { id = "armor",   gx = 1, gy = 1 },
             { id = "gloves",  gx = 0, gy = 1 },
@@ -468,6 +478,7 @@ function Inventory.draw()
         love.graphics.printf("EQUIPAMIENTO", panelX, panelY + 10, panelW, "center")
 
         local layout = {
+            { id = "weapon",  gx = 0, gy = 0 },
             { id = "helmet",  gx = 1, gy = 0 },
             { id = "armor",   gx = 1, gy = 1 },
             { id = "gloves",  gx = 0, gy = 1 },

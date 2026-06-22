@@ -7,7 +7,7 @@ function Combat.checkCollision(a, b)
            a.y + a.height > b.y
 end
 
-function Combat.resolveAttack(player, enemies)
+function Combat.resolveAttack(player, enemies, boss)
     local hitbox = player:getAttackHitbox()
     if not hitbox then return {} end
 
@@ -36,6 +36,30 @@ function Combat.resolveAttack(player, enemies)
             table.insert(hitEnemies, {enemy = enemy, damage = dmg, isCrit = isCrit})
         end
     end
+
+    if boss and boss.alive and not boss.introActive and not player.hitEnemiesThisSwing[boss] and Combat.checkCollision(hitbox, boss) then
+        player.hitEnemiesThisSwing[boss] = true
+        local kbx = 0
+        local kby = 0
+        local dx = boss.x - player.x
+        local dy = boss.y - player.y
+        local dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 0 then
+            kbx = (dx / dist) * 25
+            kby = (dy / dist) * 25
+        end
+
+        local baseDmg = math.floor(player.attackDamage + love.math.random(0, 1))
+        local isCrit = math.random() < player.critChance
+        local dmg = baseDmg
+        if isCrit then
+            dmg = math.floor(baseDmg * player.critMultiplier)
+        end
+
+        boss:takeDamage(dmg, kbx, kby)
+        table.insert(hitEnemies, {enemy = boss, damage = dmg, isCrit = isCrit})
+    end
+
     return hitEnemies
 end
 

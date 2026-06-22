@@ -8,6 +8,8 @@ local Rocks = require("rocks")
 local Bushes = require("bushes")
 local Pond = require("pond")
 local Inventory = require("inventory")
+local Shop = require("shop")
+local Boss = require("boss")
 
 local GameScene = {}
 GameScene.__index = GameScene
@@ -38,8 +40,12 @@ end
 local aliveEnemies
 local grassCanvas
 local bgMusic
-local crtShader
 local gameCanvas
+local boss
+local slimeKills
+local bossSpawned
+local bossDefeated
+local totalKills
 
 function GameScene.new()
     local self = setmetatable({}, GameScene)
@@ -89,11 +95,16 @@ function GameScene.enter()
     loadMusic()
     Inventory.load()
 
-    local ok, shader = pcall(love.graphics.newShader, "shaders/crt.glsl")
-    if ok then crtShader = shader end
-
     gameCanvas = love.graphics.newCanvas(love.graphics.getWidth(), love.graphics.getHeight())
     gameCanvas:setFilter("nearest", "nearest")
+
+    Shop.load()
+
+    boss = nil
+    slimeKills = 0
+    bossSpawned = false
+    bossDefeated = false
+    totalKills = 0
 end
 
 local GRASS_TILE = 256
@@ -208,6 +219,7 @@ function spawnEnemyNearPlayer()
 
     local types = {"slime", "goblin", "skeleton"}
     local enemyType = types[math.random(#types)]
+    print("Spawning enemy type:", enemyType)
 
     local enemy = Enemy.new(x, y, enemyType)
     enemy:loadAssets()
@@ -218,6 +230,26 @@ function spawnEnemyNearPlayer()
     enemy.speed = enemy.speed + waveBonus * 3
 
     table.insert(enemies, enemy)
+end
+
+function spawnBoss()
+    bossSpawned = true
+    local x = player.x + 120
+    local y = player.y - 80
+    x = math.max(50, math.min(MAP_WIDTH - 50, x))
+    y = math.max(50, math.min(MAP_HEIGHT - 50, y))
+
+    local ok, bossObj = pcall(Boss.new, x, y)
+    if ok and bossObj then
+        boss = bossObj
+        local ok2, err2 = pcall(function() boss:loadAssets() end)
+        if not ok2 then
+            print("ERROR loading boss assets:", err2)
+        end
+        print("BOSS SPAWNED at", x, y, "slimeKills:", slimeKills, "boss exists:", boss ~= nil)
+    else
+        print("ERROR creating boss:", bossObj)
+    end
 end
 
 function updateCamera(dt)
@@ -246,6 +278,12 @@ function GameScene.update(dt)
         return
     end
 
+    Shop.update(dt)
+
+    if Shop.getIsOpen() or Inventory.getIsOpen() then
+        return
+    end
+
     updateCamera(dt)
 
     local canMove = not player.isAttacking and not Inventory.getIsOpen()
@@ -264,11 +302,12 @@ function GameScene.update(dt)
         end
     end
 
-    local hitEnemies = Combat.resolveAttack(player, enemies)
+    local hitEnemies = Combat.resolveAttack(player, enemies, boss)
     for _, hit in ipairs(hitEnemies) do
         ui:addDamageNumber(hit.enemy.x, hit.enemy.y, hit.damage, true, hit.isCrit)
         ui:shake(hit.isCrit and 5 or 3, hit.isCrit and 0.12 or 0.08)
         if not hit.enemy.alive then
+            totalKills = (totalKills or 0) + 1
             score = score + 10
             local goldAmount = math.random(1, 3)
             table.insert(goldItems, Gold.new(hit.enemy.x, hit.enemy.y, goldAmount))
@@ -277,6 +316,17 @@ function GameScene.update(dt)
             if player.justLeveledUp then
                 ui:showLevelUp(player.level)
                 player.justLeveledUp = false
+            end
+            if not hit.enemy._killCounted then
+                hit.enemy._killCounted = true
+                totalKills = (totalKills or 0) + 1
+                if not bossSpawned then
+                    slimeKills = slimeKills + 1
+                    print("[UPDATE] totalKills=" .. tostring(totalKills) .. " slimeKills=" .. tostring(slimeKills))
+                    if slimeKills >= 5 then
+                        spawnBoss()
+                    end
+                end
             end
         end
     end
@@ -301,7 +351,7 @@ function GameScene.update(dt)
     end
 
     spawnTimer = spawnTimer + dt
-    if aliveEnemies < MAX_ENEMIES and spawnTimer >= spawnInterval then
+    if aliveEnemies < MAX_ENEMIES and spawnTimer >= spawnInterval and not bossSpawned then
         spawnEnemyNearPlayer()
         spawnTimer = 0
     end
@@ -317,6 +367,56 @@ function GameScene.update(dt)
     end
 
     ui:update(dt, player, love.graphics.getWidth(), love.graphics.getHeight())
+
+    if boss and not boss:isFinished() then
+        local bossResult, bossAoeData = boss:update(dt, player.x + player.width / 2, player.y + player.height / 2, resolveCollision)
+        if bossResult and bossAoeData and bossAoeData.type == "aoe" then
+            local bDx = bossAoeData.x - player.x
+            local bDy = bossAoeData.y - player.y
+            local bDist = math.sqrt(bDx * bDx + bDy * bDy)
+            if bDist < bossAoeData.radius then
+                local aoeDamage = math.max(0, bossAoeData.damage - player.armor)
+                if aoeDamage > 0 then
+                    player:takeDamage(aoeDamage)
+                    player.flashTimer = 0.7
+                    ui:addDamageNumber(player.x, player.y, aoeDamage, false)
+                    ui:shake(8, 0.2)
+                    ui:triggerDamageVignette()
+                end
+            end
+        end
+
+        if boss:canAttack() then
+            local bDx = (player.x + player.width / 2) - boss.x
+            local bDy = (player.y + player.height / 2) - boss.y
+            local bDist = math.sqrt(bDx * bDx + bDy * bDy)
+            if bDist < boss.attackRange * 1.5 then
+                local bossDmg = boss:doAttack()
+                local finalBossDmg = math.max(0, bossDmg - player.armor)
+                if finalBossDmg > 0 then
+                    player:takeDamage(finalBossDmg)
+                    player.flashTimer = 0.7
+                    ui:addDamageNumber(player.x, player.y, finalBossDmg, false)
+                    ui:shake(6, 0.18)
+                    ui:triggerDamageVignette()
+                end
+            end
+        end
+
+        if boss:isFinished() then
+            bossDefeated = true
+            score = score + 100
+            local goldAmount = math.random(20, 30)
+            table.insert(goldItems, Gold.new(boss.x, boss.y, goldAmount))
+            player:gainXP(20)
+            ui:addXPNumber(boss.x + 40, boss.y - 30, 20)
+            if player.justLeveledUp then
+                ui:showLevelUp(player.level)
+                player.justLeveledUp = false
+            end
+            boss = nil
+        end
+    end
 
     if player:isDead() then
         gameOver = true
@@ -377,6 +477,10 @@ function GameScene.draw()
         enemy:draw()
     end
 
+    if boss then
+        boss:draw()
+    end
+
     for _, prop in ipairs(allTrees) do
         if prop.y > entityY then
             prop.draw()
@@ -391,6 +495,31 @@ function GameScene.draw()
 
     ui:draw(player, aliveEnemies, score, goldCount, camera)
     Inventory.draw()
+    Shop.draw(goldCount)
+
+    if boss and not boss:isFinished() then
+        boss:drawHealthBar()
+        if boss.state == "cast_aoe" then
+            boss:drawAOEIndicator()
+        end
+    end
+
+    if boss and boss.introActive then
+        Boss.drawIntro(boss:getIntroProgress())
+    end
+
+    if boss and boss.screenFlash and boss.screenFlash > 0 then
+        love.graphics.setColor(1, 1, 1, boss.screenFlash * 0.3)
+        love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+    end
+
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle("fill", 5, love.graphics.getHeight() - 75, 280, 65, 4, 4)
+    love.graphics.setColor(1, 1, 0.3)
+    local debugFont = love.graphics.newFont(13)
+    love.graphics.setFont(debugFont)
+    love.graphics.print("Kills: " .. (slimeKills or 0) .. "/5", 10, love.graphics.getHeight() - 70)
+    love.graphics.print("Boss: " .. (boss and "YES" or (bossSpawned and "spawned" or "no")) .. "  enemies: " .. #enemies, 10, love.graphics.getHeight() - 50)
 
     if gameOver then
         love.graphics.setColor(0, 0, 0, 0.7)
@@ -406,20 +535,15 @@ function GameScene.draw()
 
     love.graphics.setCanvas()
 
-    if crtShader then
-        crtShader:send("time", love.timer.getTime())
-        love.graphics.setShader(crtShader)
-    end
     love.graphics.setColor(1, 1, 1)
     love.graphics.draw(gameCanvas, 0, 0)
-    if crtShader then
-        love.graphics.setShader()
-    end
 end
 
 function GameScene.keypressed(key)
     if key == "escape" then
-        if Inventory.getIsOpen() then
+        if Shop.getIsOpen() then
+            Shop.toggle()
+        elseif Inventory.getIsOpen() then
             Inventory.toggle()
         elseif ui:isCharScreenOpen() then
             ui:toggleCharScreen()
@@ -429,8 +553,20 @@ function GameScene.keypressed(key)
         return
     end
 
+    if key == "m" then
+        Shop.toggle()
+        return
+    end
+
     if key == "tab" then
-        Inventory.toggle()
+        if not Shop.getIsOpen() then
+            Inventory.toggle()
+        end
+        return
+    end
+
+    if Shop.getIsOpen() then
+        goldCount = Shop.keypressed(key, goldCount)
         return
     end
 
@@ -450,27 +586,6 @@ function GameScene.keypressed(key)
         GameScene.enter()
         return
     end
-
-    if key == "space" then
-        if player:attack() then
-            local hitEnemies = Combat.resolveAttack(player, enemies)
-            for _, hit in ipairs(hitEnemies) do
-                ui:addDamageNumber(hit.enemy.x, hit.enemy.y, hit.damage, true, hit.isCrit)
-                ui:shake(hit.isCrit and 5 or 3, hit.isCrit and 0.12 or 0.08)
-                if not hit.enemy.alive then
-                    score = score + 10
-                    local goldAmount = math.random(1, 3)
-                    table.insert(goldItems, Gold.new(hit.enemy.x, hit.enemy.y, goldAmount))
-                    player:gainXP(1)
-                    ui:addXPNumber(hit.enemy.x + 30, hit.enemy.y - 20, 1)
-                    if player.justLeveledUp then
-                        ui:showLevelUp(player.level)
-                        player.justLeveledUp = false
-                    end
-                end
-            end
-        end
-    end
 end
 
 function GameScene.keyreleased(key)
@@ -481,6 +596,53 @@ function GameScene.mousepressed(x, y, button)
         Inventory.mousepressed(x, y)
         return
     end
+
+    if button == 1 and not gameOver and not Shop.getIsOpen() and not Inventory.getIsOpen() and not ui:isCharScreenOpen() then
+        if player:attack() then
+            local hitEnemies = Combat.resolveAttack(player, enemies, boss)
+            for _, hit in ipairs(hitEnemies) do
+                ui:addDamageNumber(hit.enemy.x, hit.enemy.y, hit.damage, true, hit.isCrit)
+                ui:shake(hit.isCrit and 5 or 3, hit.isCrit and 0.12 or 0.08)
+                if not hit.enemy.alive then
+                    totalKills = (totalKills or 0) + 1
+                    score = score + 10
+                    local goldAmount = math.random(1, 3)
+                    table.insert(goldItems, Gold.new(hit.enemy.x, hit.enemy.y, goldAmount))
+                    player:gainXP(1)
+                    ui:addXPNumber(hit.enemy.x + 30, hit.enemy.y - 20, 1)
+                    if player.justLeveledUp then
+                        ui:showLevelUp(player.level)
+                        player.justLeveledUp = false
+                    end
+                    if not hit.enemy._killCounted then
+                        hit.enemy._killCounted = true
+                        totalKills = (totalKills or 0) + 1
+                        if not bossSpawned then
+                            slimeKills = slimeKills + 1
+                            print("[MOUSE] totalKills=" .. tostring(totalKills) .. " slimeKills=" .. tostring(slimeKills))
+                            if slimeKills >= 5 then
+                                spawnBoss()
+                            end
+                        end
+                    end
+                    if hit.enemy == boss then
+                        bossDefeated = true
+                        score = score + 100
+                        local goldAmount = math.random(20, 30)
+                        table.insert(goldItems, Gold.new(boss.x, boss.y, goldAmount))
+                        player:gainXP(20)
+                        ui:addXPNumber(boss.x + 40, boss.y - 30, 20)
+                        if player.justLeveledUp then
+                            ui:showLevelUp(player.level)
+                            player.justLeveledUp = false
+                        end
+                        boss = nil
+                    end
+                end
+            end
+        end
+    end
+
     ui:mousepressed(x, y, button)
 end
 

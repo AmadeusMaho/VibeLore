@@ -1,12 +1,14 @@
 local SceneManager = require("scene_manager")
+local MenuScene = require("menu_scene")
 local GameScene = require("game_scene")
 
 function love.load()
     love.graphics.setBackgroundColor(0.1, 0.1, 0.15)
     love.window.setTitle("Heroes Lore - Clone")
 
+    SceneManager.register("menu", MenuScene)
     SceneManager.register("game", GameScene)
-    SceneManager.switch("game")
+    SceneManager.switch("menu")
 end
 
 function love.update(dt)
