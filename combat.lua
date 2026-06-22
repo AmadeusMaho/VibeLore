@@ -1,0 +1,57 @@
+local Combat = {}
+
+function Combat.checkCollision(a, b)
+    return a.x < b.x + b.width and
+           a.x + a.width > b.x and
+           a.y < b.y + b.height and
+           a.y + a.height > b.y
+end
+
+function Combat.resolveAttack(player, enemies)
+    local hitbox = player:getAttackHitbox()
+    if not hitbox then return {} end
+
+    local hitEnemies = {}
+    for _, enemy in ipairs(enemies) do
+        if enemy.alive and not player.hitEnemiesThisSwing[enemy] and Combat.checkCollision(hitbox, enemy) then
+            player.hitEnemiesThisSwing[enemy] = true
+            local kbx = 0
+            local kby = 0
+            local dx = enemy.x - player.x
+            local dy = enemy.y - player.y
+            local dist = math.sqrt(dx * dx + dy * dy)
+            if dist > 0 then
+                kbx = (dx / dist) * 60
+                kby = (dy / dist) * 60
+            end
+
+            local baseDmg = love.math.random(1, 2)
+            local isCrit = math.random() < player.critChance
+            local dmg = baseDmg
+            if isCrit then
+                dmg = baseDmg * player.critMultiplier
+            end
+
+            enemy:takeDamage(dmg, kbx, kby)
+            table.insert(hitEnemies, {enemy = enemy, damage = dmg, isCrit = isCrit})
+        end
+    end
+    return hitEnemies
+end
+
+function Combat.checkEnemyAttacks(player, enemies)
+    local totalDamage = 0
+    for _, enemy in ipairs(enemies) do
+        if enemy:canAttack() then
+            local dx = player.x + player.width / 2 - (enemy.x + enemy.width / 2)
+            local dy = player.y + player.height / 2 - (enemy.y + enemy.height / 2)
+            local dist = math.sqrt(dx * dx + dy * dy)
+            if dist < enemy.attackRange + 20 then
+                totalDamage = totalDamage + enemy:doAttack()
+            end
+        end
+    end
+    return totalDamage
+end
+
+return Combat
