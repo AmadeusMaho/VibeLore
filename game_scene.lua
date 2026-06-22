@@ -4,6 +4,8 @@ local Combat = require("combat")
 local Gold = require("gold")
 local UI = require("ui")
 local Trees = require("trees")
+local Rocks = require("rocks")
+local Bushes = require("bushes")
 
 local GameScene = {}
 GameScene.__index = GameScene
@@ -24,6 +26,12 @@ local camera
 local groundTiles
 local spawnTimer
 local spawnInterval
+
+local function resolveCollision(x, y, w, h)
+    x, y = Trees.resolveCollision(x, y, w, h)
+    x, y = Rocks.resolveCollision(x, y, w, h)
+    return x, y
+end
 local aliveEnemies
 local grassCanvas
 local bgMusic
@@ -63,6 +71,10 @@ function GameScene.enter()
     generateGround()
     Trees.load()
     Trees.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
+    Rocks.load()
+    Rocks.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
+    Bushes.load()
+    Bushes.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
     spawnInitialEnemies()
 
     spawnTimer = 0
@@ -182,6 +194,9 @@ function spawnEnemyNearPlayer()
     if Trees.checkCollision(x, y, enemyW, enemyH) then
         return
     end
+    if Rocks.checkCollision(x, y, enemyW, enemyH) then
+        return
+    end
 
     local types = {"slime", "goblin", "skeleton"}
     local enemyType = types[math.random(#types)]
@@ -226,12 +241,12 @@ function GameScene.update(dt)
     updateCamera(dt)
 
     local canMove = not player.isAttacking
-    player:update(dt, canMove, Trees.resolveCollision, camera.x, camera.y, camera.zoom)
+    player:update(dt, canMove, resolveCollision, camera.x, camera.y, camera.zoom)
     player.x = math.max(0, math.min(MAP_WIDTH - player.width, player.x))
     player.y = math.max(0, math.min(MAP_HEIGHT - player.height, player.y))
 
     for i = #enemies, 1, -1 do
-        local shouldRemove = enemies[i]:update(dt, player.x, player.y, Trees.resolveCollision)
+        local shouldRemove = enemies[i]:update(dt, player.x, player.y, resolveCollision)
         if shouldRemove then
             table.remove(enemies, i)
         else
@@ -325,6 +340,8 @@ function GameScene.draw()
 
     local entityY = player.y + player.height / 2
     Trees.drawBelow(entityY)
+    Rocks.drawBelow(entityY)
+    Bushes.drawBelow(entityY)
 
     player:draw()
 

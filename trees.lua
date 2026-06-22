@@ -1,6 +1,6 @@
 local Trees = {}
 
-local TREE_COUNT = 25
+local TREE_COUNT = 35
 local TRUNK_WIDTH = 24
 local TRUNK_HEIGHT = 24
 local SPAWN_SAFE_RADIUS = 250
