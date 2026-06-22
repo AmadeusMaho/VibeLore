@@ -31,11 +31,11 @@ function Enemy.new(x, y, enemyType)
     local self = setmetatable({}, Enemy)
     self.x = x
     self.y = y
-    self.width = ENEMY_SPRITE_SIZE * ENEMY_SCALE
-    self.height = ENEMY_SPRITE_SIZE * ENEMY_SCALE
+    self.width = 40
+    self.height = 40
     self.speed = 40
-    self.health = 5
-    self.maxHealth = 5
+    self.health = math.random(8, 10)
+    self.maxHealth = self.health
     self.damage = 2
     self.attackRange = ATTACK_RANGE
     self.attackCooldown = 1.2
@@ -116,7 +116,7 @@ function Enemy:loadFrames(sheet, frames)
     end
 end
 
-function Enemy:update(dt, playerX, playerY)
+function Enemy:update(dt, playerX, playerY, resolveFunc)
     if not self.alive then
         self.deathTimer = self.deathTimer + dt
         return self.deathTimer >= self.deathDuration
@@ -158,8 +158,13 @@ function Enemy:update(dt, playerX, playerY)
 
     self.knockbackX = self.knockbackX * 0.85
     self.knockbackY = self.knockbackY * 0.85
-    self.x = self.x + self.knockbackX * dt * 60
-    self.y = self.y + self.knockbackY * dt * 60
+    local kbNewX = self.x + self.knockbackX * dt * 60
+    local kbNewY = self.y + self.knockbackY * dt * 60
+    if resolveFunc then
+        self.x, self.y = resolveFunc(kbNewX, kbNewY, self.width, self.height)
+    else
+        self.x, self.y = kbNewX, kbNewY
+    end
 
     local dx = playerX - self.x
     local dy = playerY - self.y
@@ -201,8 +206,13 @@ function Enemy:update(dt, playerX, playerY)
         else
             local nx = pdx / patrolDist
             local ny = pdy / patrolDist
-            self.x = self.x + nx * self.patrolSpeed * dt
-            self.y = self.y + ny * self.patrolSpeed * dt
+            local patNewX = self.x + nx * self.patrolSpeed * dt
+            local patNewY = self.y + ny * self.patrolSpeed * dt
+            if resolveFunc then
+                self.x, self.y = resolveFunc(patNewX, patNewY, self.width, self.height)
+            else
+                self.x, self.y = patNewX, patNewY
+            end
         end
 
     elseif self.state == Enemy.STATES.CHASE then
@@ -224,8 +234,13 @@ function Enemy:update(dt, playerX, playerY)
         else
             local nx = dx / distToPlayer
             local ny = dy / distToPlayer
-            self.x = self.x + nx * self.speed * CHASE_SPEED_MULT * dt
-            self.y = self.y + ny * self.speed * CHASE_SPEED_MULT * dt
+            local chNewX = self.x + nx * self.speed * CHASE_SPEED_MULT * dt
+            local chNewY = self.y + ny * self.speed * CHASE_SPEED_MULT * dt
+            if resolveFunc then
+                self.x, self.y = resolveFunc(chNewX, chNewY, self.width, self.height)
+            else
+                self.x, self.y = chNewX, chNewY
+            end
         end
 
     elseif self.state == Enemy.STATES.CHARGE then
@@ -248,8 +263,13 @@ function Enemy:update(dt, playerX, playerY)
         else
             local nx = cdx / cdist
             local ny = cdy / cdist
-            self.x = self.x + nx * self.speed * CHARGE_SPEED_MULT * dt
-            self.y = self.y + ny * self.speed * CHARGE_SPEED_MULT * dt
+            local caNewX = self.x + nx * self.speed * CHARGE_SPEED_MULT * dt
+            local caNewY = self.y + ny * self.speed * CHARGE_SPEED_MULT * dt
+            if resolveFunc then
+                self.x, self.y = resolveFunc(caNewX, caNewY, self.width, self.height)
+            else
+                self.x, self.y = caNewX, caNewY
+            end
         end
 
     elseif self.state == Enemy.STATES.ATTACK then

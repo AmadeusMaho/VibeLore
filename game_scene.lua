@@ -3,6 +3,7 @@ local Enemy = require("enemy")
 local Combat = require("combat")
 local Gold = require("gold")
 local UI = require("ui")
+local Trees = require("trees")
 
 local GameScene = {}
 GameScene.__index = GameScene
@@ -60,6 +61,8 @@ function GameScene.enter()
 
     groundTiles = {}
     generateGround()
+    Trees.load()
+    Trees.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
     spawnInitialEnemies()
 
     spawnTimer = 0
@@ -174,6 +177,12 @@ function spawnEnemyNearPlayer()
     x = math.max(50, math.min(MAP_WIDTH - 50, x))
     y = math.max(50, math.min(MAP_HEIGHT - 50, y))
 
+    local enemyW = 128
+    local enemyH = 128
+    if Trees.checkCollision(x, y, enemyW, enemyH) then
+        return
+    end
+
     local types = {"slime", "goblin", "skeleton"}
     local enemyType = types[math.random(#types)]
 
@@ -217,12 +226,18 @@ function GameScene.update(dt)
     updateCamera(dt)
 
     local canMove = not player.isAttacking
-    player:update(dt, canMove)
+    player:update(dt, canMove, Trees.resolveCollision, camera.x, camera.y, camera.zoom)
+    player.x = math.max(0, math.min(MAP_WIDTH - player.width, player.x))
+    player.y = math.max(0, math.min(MAP_HEIGHT - player.height, player.y))
 
     for i = #enemies, 1, -1 do
-        local shouldRemove = enemies[i]:update(dt, player.x, player.y)
+        local shouldRemove = enemies[i]:update(dt, player.x, player.y, Trees.resolveCollision)
         if shouldRemove then
             table.remove(enemies, i)
+        else
+            local e = enemies[i]
+            e.x = math.max(0, math.min(MAP_WIDTH - e.width, e.x))
+            e.y = math.max(0, math.min(MAP_HEIGHT - e.height, e.y))
         end
     end
 
@@ -308,11 +323,16 @@ function GameScene.draw()
     love.graphics.setColor(0.18, 0.25, 0.12)
     love.graphics.rectangle("line", 10, 10, MAP_WIDTH - 20, MAP_HEIGHT - 20)
 
+    local entityY = player.y + player.height / 2
+    Trees.drawBelow(entityY)
+
     player:draw()
 
     for _, enemy in ipairs(enemies) do
         enemy:draw()
     end
+
+    Trees.drawAbove(entityY)
 
     for _, gold in ipairs(goldItems) do
         gold:draw()

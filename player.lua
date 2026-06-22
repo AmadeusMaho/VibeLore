@@ -10,8 +10,8 @@ function Player.new(x, y)
     local self = setmetatable({}, Player)
     self.x = x or 400
     self.y = y or 300
-    self.width = 192
-    self.height = 192
+    self.width = 40
+    self.height = 40
     self.speed = 150
     self.health = 100
     self.maxHealth = 100
@@ -83,10 +83,10 @@ function Player:generateFrames(sheet, frames)
     end
 end
 
-function Player:update(dt, canMove)
+function Player:update(dt, canMove, resolveFunc, cameraX, cameraY, zoom)
     self.attackTimer = math.max(0, self.attackTimer - dt)
     self.flashTimer = math.max(0, self.flashTimer - dt)
-    self:updateAttackAngle()
+    self:updateAttackAngle(cameraX or 0, cameraY or 0, zoom or 1)
 
     if self.isAttacking then
         self.attackAnimTimer = self.attackAnimTimer - dt
@@ -131,8 +131,13 @@ function Player:update(dt, canMove)
         sprintMult = 1.4
     end
 
-    self.x = self.x + dx * self.speed * sprintMult * dt
-    self.y = self.y + dy * self.speed * sprintMult * dt
+    local newX = self.x + dx * self.speed * sprintMult * dt
+    local newY = self.y + dy * self.speed * sprintMult * dt
+    if resolveFunc then
+        self.x, self.y = resolveFunc(newX, newY, self.width, self.height)
+    else
+        self.x, self.y = newX, newY
+    end
 
     if self.isMoving then
         if math.abs(dx) > math.abs(dy) then
@@ -156,11 +161,12 @@ function Player:update(dt, canMove)
     end
 end
 
-function Player:updateAttackAngle()
+function Player:updateAttackAngle(cameraX, cameraY, zoom)
     local mx, my = love.mouse.getPosition()
-    local cx = love.graphics.getWidth() / 2
-    local cy = love.graphics.getHeight() / 2
-    self.attackAngle = math.atan2(my - cy, mx - cx)
+    local zoom = zoom or 1
+    local playerScreenX = (self.x + self.width / 2 - cameraX) * zoom
+    local playerScreenY = (self.y + self.height / 2 - cameraY) * zoom
+    self.attackAngle = math.atan2(my - playerScreenY, mx - playerScreenX)
 end
 
 function Player:attack()
