@@ -40,8 +40,10 @@ end
 local aliveEnemies
 local grassCanvas
 local bgMusic
+local crtShader
 local gameCanvas
 local boss
+local bossBGM
 local slimeKills
 local bossSpawned
 local bossDefeated
@@ -97,6 +99,12 @@ function GameScene.enter()
 
     gameCanvas = love.graphics.newCanvas(love.graphics.getWidth(), love.graphics.getHeight())
     gameCanvas:setFilter("nearest", "nearest")
+
+    local ok, shader = pcall(love.graphics.newShader, "shaders/crt.glsl")
+    if ok then crtShader = shader end
+
+    local ok3, s3 = pcall(love.audio.newSource, "sounds/bossBGM.ogg", "stream")
+    if ok3 then bossBGM = s3 end
 
     Shop.load()
 
@@ -246,6 +254,11 @@ function spawnBoss()
         if not ok2 then
             print("ERROR loading boss assets:", err2)
         end
+        if bgMusic and bgMusic:isPlaying() then bgMusic:pause() end
+        if bossBGM then
+            bossBGM:setLooping(true)
+            bossBGM:play()
+        end
         print("BOSS SPAWNED at", x, y, "slimeKills:", slimeKills, "boss exists:", boss ~= nil)
     else
         print("ERROR creating boss:", bossObj)
@@ -368,20 +381,65 @@ function GameScene.update(dt)
 
     ui:update(dt, player, love.graphics.getWidth(), love.graphics.getHeight())
 
-    if boss and not boss:isFinished() then
+        if boss and not boss:isFinished() then
         local bossResult, bossAoeData = boss:update(dt, player.x + player.width / 2, player.y + player.height / 2, resolveCollision)
-        if bossResult and bossAoeData and bossAoeData.type == "aoe" then
-            local bDx = bossAoeData.x - player.x
-            local bDy = bossAoeData.y - player.y
-            local bDist = math.sqrt(bDx * bDx + bDy * bDy)
-            if bDist < bossAoeData.radius then
-                local aoeDamage = math.max(0, bossAoeData.damage - player.armor)
-                if aoeDamage > 0 then
-                    player:takeDamage(aoeDamage)
-                    player.flashTimer = 0.7
-                    ui:addDamageNumber(player.x, player.y, aoeDamage, false)
-                    ui:shake(8, 0.2)
-                    ui:triggerDamageVignette()
+
+        if boss:isEnraged() and not boss._enrageSlimesSpawned then
+            boss._enrageSlimesSpawned = true
+            local spawnCount = 4
+            for i = 1, spawnCount do
+                local angle = (i - 1) * (math.pi * 2 / spawnCount)
+                local spawnDist = 100
+                local sx = boss.x + boss.width / 2 + math.cos(angle) * spawnDist
+                local sy = boss.y + boss.height / 2 + math.sin(angle) * spawnDist
+                sx = math.max(50, math.min(MAP_WIDTH - 50, sx))
+                sy = math.max(50, math.min(MAP_HEIGHT - 50, sy))
+                local newEnemy = Enemy.new(sx, sy, "slime")
+                newEnemy:loadAssets()
+                table.insert(enemies, newEnemy)
+            end
+        end
+
+        if boss:isEnraged() and boss:getEnrageTimer() > 0 then
+            local enrageMsg = "¡El boss está furioso!"
+            local font = love.graphics.newFont(28)
+            love.graphics.setFont(font)
+            love.graphics.setColor(1, 0.2, 0.2, math.min(1, boss:getEnrageTimer() / 1.0))
+            love.graphics.printf(enrageMsg, 0, love.graphics.getHeight() / 2 - 80, love.graphics.getWidth(), "center")
+        end
+
+        if bossResult and bossAoeData then
+            if bossAoeData.type == "aoe" then
+                local pCx = player.x + player.width / 2
+                local pCy = player.y + player.height / 2
+                local bDx = bossAoeData.x - pCx
+                local bDy = bossAoeData.y - pCy
+                local bDist = math.sqrt(bDx * bDx + bDy * bDy)
+                if bDist <= bossAoeData.radius then
+                    local aoeDamage = math.max(0, bossAoeData.damage - player.armor)
+                    if aoeDamage > 0 then
+                        player:takeDamage(aoeDamage)
+                        player.flashTimer = 0.7
+                        ui:addDamageNumber(player.x, player.y, aoeDamage, false)
+                        ui:shake(8, 0.2)
+                        ui:triggerDamageVignette()
+                    end
+                end
+            elseif bossAoeData.type == "jump_hit" then
+                local pCx = player.x + player.width / 2
+                local pCy = player.y + player.height / 2
+                local jDx = bossAoeData.x - pCx
+                local jDy = bossAoeData.y - pCy
+                local jDist = math.sqrt(jDx * jDx + jDy * jDy)
+                if jDist <= bossAoeData.radius then
+                    local jumpDamage = math.max(0, bossAoeData.damage - player.armor)
+                    if jumpDamage > 0 then
+                        player:takeDamage(jumpDamage)
+                        player.flashTimer = 0.7
+                        ui:addDamageNumber(player.x, player.y, jumpDamage, false)
+                        ui:shake(10, 0.25)
+                        ui:triggerDamageVignette()
+                    end
                 end
             end
         end
@@ -405,6 +463,8 @@ function GameScene.update(dt)
 
         if boss:isFinished() then
             bossDefeated = true
+            if bossBGM then bossBGM:stop() end
+            if bgMusic then bgMusic:play() end
             score = score + 100
             local goldAmount = math.random(20, 30)
             table.insert(goldItems, Gold.new(boss.x, boss.y, goldAmount))
@@ -479,6 +539,9 @@ function GameScene.draw()
 
     if boss then
         boss:draw()
+        if boss.state == "cast_aoe" or boss.state == "aoe_active" then
+            boss:drawAOEIndicator()
+        end
     end
 
     for _, prop in ipairs(allTrees) do
@@ -499,9 +562,6 @@ function GameScene.draw()
 
     if boss and not boss:isFinished() then
         boss:drawHealthBar()
-        if boss.state == "cast_aoe" then
-            boss:drawAOEIndicator()
-        end
     end
 
     if boss and boss.introActive then
@@ -535,8 +595,15 @@ function GameScene.draw()
 
     love.graphics.setCanvas()
 
+    if crtShader then
+        crtShader:send("time", love.timer.getTime())
+        love.graphics.setShader(crtShader)
+    end
     love.graphics.setColor(1, 1, 1)
     love.graphics.draw(gameCanvas, 0, 0)
+    if crtShader then
+        love.graphics.setShader()
+    end
 end
 
 function GameScene.keypressed(key)
@@ -627,6 +694,8 @@ function GameScene.mousepressed(x, y, button)
                     end
                     if hit.enemy == boss then
                         bossDefeated = true
+                        if bossBGM then bossBGM:stop() end
+                        if bgMusic then bgMusic:play() end
                         score = score + 100
                         local goldAmount = math.random(20, 30)
                         table.insert(goldItems, Gold.new(boss.x, boss.y, goldAmount))
