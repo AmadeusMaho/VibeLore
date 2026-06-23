@@ -7,18 +7,37 @@ local options = {"Iniciar", "Salir"}
 local menuAlpha = 0
 local titleScale = 1
 local pulseTimer = 0
+local mouseHover = 0
 
 function MenuScene.enter()
     selectedIndex = 1
     menuAlpha = 0
     titleScale = 1
     pulseTimer = 0
+    mouseHover = 0
 end
 
 function MenuScene.update(dt)
     menuAlpha = math.min(1, menuAlpha + dt * 2)
     pulseTimer = pulseTimer + dt
     titleScale = 1 + math.sin(pulseTimer * 2) * 0.03
+
+    local w = love.graphics.getWidth()
+    local h = love.graphics.getHeight()
+    local btnW = 260
+    local btnH = 52
+    local btnX = w / 2 - btnW / 2
+    local startY = h * 0.48
+    local gap = 70
+    local mx, my = love.mouse.getPosition()
+
+    mouseHover = 0
+    for i = 1, #options do
+        local by = startY + (i - 1) * gap
+        if mx >= btnX and mx <= btnX + btnW and my >= by and my <= by + btnH then
+            mouseHover = i
+        end
+    end
 end
 
 function MenuScene.draw()
@@ -52,7 +71,7 @@ function MenuScene.draw()
 
     for i, label in ipairs(options) do
         local by = startY + (i - 1) * gap
-        local hover = (i == selectedIndex)
+        local hover = (i == selectedIndex) or (i == mouseHover)
 
         if hover then
             love.graphics.setColor(0.25, 0.35, 0.6, menuAlpha)
@@ -78,15 +97,16 @@ function MenuScene.draw()
         love.graphics.printf(label, btnX, by + 10, btnW, "center")
     end
 
+    local activeIdx = mouseHover > 0 and mouseHover or selectedIndex
     local arrowX = btnX - 30
-    local arrowY = startY + (selectedIndex - 1) * gap + btnH / 2
+    local arrowY = startY + (activeIdx - 1) * gap + btnH / 2
     love.graphics.setColor(1, 0.85, 0.3, menuAlpha)
     love.graphics.setFont(love.graphics.newFont(28))
     love.graphics.print(">", arrowX, arrowY - 14)
 
     love.graphics.setColor(0.5, 0.5, 0.6, menuAlpha * 0.6)
     love.graphics.setFont(love.graphics.newFont(14))
-    love.graphics.printf("Usa W/S o Flechas para navegar, Enter para seleccionar", 0, h * 0.88, w, "center")
+    love.graphics.printf("Usa W/S / Flechas / Click para navegar", 0, h * 0.88, w, "center")
 end
 
 function MenuScene.keypressed(key)
@@ -97,9 +117,20 @@ function MenuScene.keypressed(key)
         selectedIndex = selectedIndex + 1
         if selectedIndex > #options then selectedIndex = 1 end
     elseif key == "return" or key == "space" then
-        if selectedIndex == 1 then
-            SceneManager.switch("game")
-        elseif selectedIndex == 2 then
+        local choice = mouseHover > 0 and mouseHover or selectedIndex
+        if choice == 1 then
+            SceneManager.switch("map_select")
+        elseif choice == 2 then
+            love.event.quit()
+        end
+    end
+end
+
+function MenuScene.mousepressed(x, y, button)
+    if button == 1 and mouseHover > 0 then
+        if mouseHover == 1 then
+            SceneManager.switch("map_select")
+        elseif mouseHover == 2 then
             love.event.quit()
         end
     end

@@ -51,6 +51,19 @@ function Player.new(x, y)
     self.hitEnemiesThisSwing = {}
     self.justLeveledUp = false
     self.flashTimer = 0
+    self.isCharging = false
+    self.chargeTime = 0
+    self.maxChargeTime = 1.0
+    self.chargeDamageMultiplier = 3.0
+    self.mouseHeld = false
+    self.isDashing = false
+    self.dashSpeed = 500
+    self.dashDuration = 0.15
+    self.dashTimer = 0
+    self.dashCooldown = 0.5
+    self.dashCooldownTimer = 0
+    self.dashDirection = {x = 0, y = 0}
+    self.invincible = false
     return self
 end
 
@@ -88,7 +101,24 @@ end
 function Player:update(dt, canMove, resolveFunc, cameraX, cameraY, zoom)
     self.attackTimer = math.max(0, self.attackTimer - dt)
     self.flashTimer = math.max(0, self.flashTimer - dt)
+    self.dashCooldownTimer = math.max(0, self.dashCooldownTimer - dt)
     self:updateAttackAngle(cameraX or 0, cameraY or 0, zoom or 1)
+
+    if self.isDashing then
+        self.dashTimer = self.dashTimer - dt
+        local newX = self.x + self.dashDirection.x * self.dashSpeed * dt
+        local newY = self.y + self.dashDirection.y * self.dashSpeed * dt
+        if resolveFunc then
+            self.x, self.y = resolveFunc(newX, newY, self.width, self.height)
+        else
+            self.x, self.y = newX, newY
+        end
+        if self.dashTimer <= 0 then
+            self.isDashing = false
+            self.invincible = false
+        end
+        return
+    end
 
     if self.isAttacking then
         self.attackAnimTimer = self.attackAnimTimer - dt
@@ -102,6 +132,15 @@ function Player:update(dt, canMove, resolveFunc, cameraX, cameraY, zoom)
                 self.state = "idle"
             end
         end
+        return
+    end
+
+    if self.isCharging then
+        self.chargeTime = math.min(self.maxChargeTime, self.chargeTime + dt)
+        self.state = "idle"
+        self.currentFrame = 1
+        self.animTimer = 0
+        self.isMoving = false
         return
     end
 
@@ -169,6 +208,9 @@ function Player:updateAttackAngle(cameraX, cameraY, zoom)
     local playerScreenX = (self.x + self.width / 2 - cameraX) * zoom
     local playerScreenY = (self.y + self.height / 2 - cameraY) * zoom
     self.attackAngle = math.atan2(my - playerScreenY, mx - playerScreenX)
+    local dx = mx - playerScreenX
+    local dy = my - playerScreenY
+    self.attackDist = math.min(self.attackRange, math.sqrt(dx * dx + dy * dy) / zoom)
 end
 
 function Player:attack()
@@ -183,6 +225,62 @@ function Player:attack()
     return true
 end
 
+function Player:startCharge()
+    if self.attackTimer > 0 or self.isAttacking or self.isCharging then return end
+    self.isCharging = true
+    self.chargeTime = 0
+    self.state = "idle"
+end
+
+function Player:releaseCharge()
+    if not self.isCharging then return 0 end
+    local chargeRatio = math.min(1, self.chargeTime / self.maxChargeTime)
+    local damageMultiplier = 1 + (self.chargeDamageMultiplier - 1) * chargeRatio
+    local totalDamage = math.floor(self.attackDamage * damageMultiplier)
+    self.isCharging = false
+    self.chargeTime = 0
+    self:attack()
+    return totalDamage
+end
+
+function Player:getChargeRatio()
+    if not self.isCharging then return 0 end
+    return math.min(1, self.chargeTime / self.maxChargeTime)
+end
+
+function Player:startDash()
+    if self.isDashing or self.dashCooldownTimer > 0 or self.isAttacking then return false end
+    local dx, dy = 0, 0
+    if love.keyboard.isDown("w") or love.keyboard.isDown("up") then
+        dy = -1
+    end
+    if love.keyboard.isDown("s") or love.keyboard.isDown("down") then
+        dy = 1
+    end
+    if love.keyboard.isDown("a") or love.keyboard.isDown("left") then
+        dx = -1
+    end
+    if love.keyboard.isDown("d") or love.keyboard.isDown("right") then
+        dx = 1
+    end
+    if dx == 0 and dy == 0 then
+        dx = math.cos(self.attackAngle)
+        dy = math.sin(self.attackAngle)
+    else
+        local len = math.sqrt(dx * dx + dy * dy)
+        dx = dx / len
+        dy = dy / len
+    end
+    self.isDashing = true
+    self.dashTimer = self.dashDuration
+    self.dashCooldownTimer = self.dashCooldown
+    self.dashDirection = {x = dx, y = dy}
+    self.invincible = true
+    self.isCharging = false
+    self.chargeTime = 0
+    return true
+end
+
 function Player:getAttackHitbox()
     if not self.isAttacking then return nil end
     local mx, my = self:getAttackMarkerPos()
@@ -192,11 +290,13 @@ end
 function Player:getAttackMarkerPos()
     local cx = self.x + self.width / 2
     local cy = self.y + self.height / 2
-    return cx + math.cos(self.attackAngle) * self.attackRange,
-           cy + math.sin(self.attackAngle) * self.attackRange
+    local dist = self.attackDist or self.attackRange
+    return cx + math.cos(self.attackAngle) * dist,
+           cy + math.sin(self.attackAngle) * dist
 end
 
 function Player:takeDamage(amount)
+    if self.invincible then return end
     self.health = math.max(0, self.health - amount)
     if playerHitSound then
         playerHitSound:stop()
@@ -266,6 +366,11 @@ function Player:draw()
     if sheet and frames and frames[self.currentFrame] then
         if self.flashTimer > 0 then
             love.graphics.setColor(1, 0.3, 0.3)
+        elseif self.isDashing then
+            love.graphics.setColor(0.5, 0.8, 1, 0.7)
+        elseif self.isCharging then
+            local ratio = self:getChargeRatio()
+            love.graphics.setColor(1, 1 - ratio * 0.5, 1 - ratio)
         else
             love.graphics.setColor(1, 1, 1)
         end
@@ -279,6 +384,7 @@ function Player:draw()
     end
 
     self:drawAttackMarker()
+    self:drawChargeIndicator()
 end
 
 function Player:drawPlaceholder(cx, cy)
@@ -299,15 +405,59 @@ end
 function Player:drawAttackMarker()
     if self.state ~= "attack" then return end
     local mx, my = self:getAttackMarkerPos()
-    love.graphics.setColor(1, 0.3, 0.3, 0.7)
-    love.graphics.circle("line", mx, my, 25)
+    local cx = self.x + self.width / 2
+    local cy = self.y + self.height / 2
+
     love.graphics.setColor(1, 0.3, 0.3, 0.3)
-    love.graphics.circle("fill", mx, my, 25)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(cx, cy, mx, my)
+    love.graphics.setLineWidth(1)
+
+    love.graphics.setColor(1, 0.3, 0.3, 0.7)
+    love.graphics.circle("line", mx, my, 20)
+    love.graphics.setColor(1, 0.3, 0.3, 0.3)
+    love.graphics.circle("fill", mx, my, 20)
+
     love.graphics.setColor(1, 1, 1, 0.9)
     love.graphics.setLineWidth(2)
-    love.graphics.line(mx - 8, my, mx + 8, my)
-    love.graphics.line(mx, my - 8, mx, my + 8)
+    love.graphics.line(mx - 6, my, mx + 6, my)
+    love.graphics.line(mx, my - 6, mx, my + 6)
     love.graphics.setLineWidth(1)
+end
+
+function Player:drawChargeIndicator()
+    if not self.isCharging then return end
+    local cx = self.x + self.width / 2
+    local cy = self.y + self.height / 2
+    local ratio = self:getChargeRatio()
+
+    local barW = 40
+    local barH = 5
+    local barX = cx - barW / 2
+    local barY = cy - self.height / 2 - 12
+
+    love.graphics.setColor(0.2, 0.2, 0.2, 0.7)
+    love.graphics.rectangle("fill", barX - 1, barY - 1, barW + 2, barH + 2, 2, 2)
+
+    love.graphics.setColor(0.8, 0.1, 0.1, 0.9)
+    love.graphics.rectangle("fill", barX, barY, barW * ratio, barH, 2, 2)
+
+    love.graphics.setColor(1, 0.3, 0.3, 0.8)
+    love.graphics.rectangle("line", barX, barY, barW, barH, 2, 2)
+
+    local dirLen = 20 + ratio * 15
+    local dirX = cx + math.cos(self.attackAngle) * (self.width / 2 + 5)
+    local dirY = cy + math.sin(self.attackAngle) * (self.height / 2 + 5)
+    local endX = dirX + math.cos(self.attackAngle) * dirLen
+    local endY = dirY + math.sin(self.attackAngle) * dirLen
+
+    love.graphics.setColor(1, 0.2, 0.2, 0.6 + ratio * 0.4)
+    love.graphics.setLineWidth(2 + ratio * 2)
+    love.graphics.line(dirX, dirY, endX, endY)
+    love.graphics.setLineWidth(1)
+
+    love.graphics.setColor(1, 0.2, 0.2, 0.3 + ratio * 0.3)
+    love.graphics.circle("fill", endX, endY, 4 + ratio * 4)
 end
 
 return Player

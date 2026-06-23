@@ -47,4 +47,10 @@ function SceneManager.mousepressed(x, y, button)
     end
 end
 
+function SceneManager.wheelmoved(x, y)
+    if SceneManager.currentScene and SceneManager.currentScene.wheelmoved then
+        SceneManager.currentScene.wheelmoved(x, y)
+    end
+end
+
 return SceneManager

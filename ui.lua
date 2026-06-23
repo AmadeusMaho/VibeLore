@@ -83,6 +83,12 @@ function UI.new()
         pressed = false,
         hover = false
     }
+    self.statBtns = {
+        {stat = "str", hover = false},
+        {stat = "agi", hover = false},
+        {stat = "int", hover = false},
+        {stat = "con", hover = false},
+    }
     self.damageNumbers = {}
     self.xpNumbers = {}
     self.screenShake = 0
@@ -130,6 +136,24 @@ function UI:update(dt, player, screenWidth, screenHeight)
     local mx, my = love.mouse.getPosition()
     self.attackBtn.hover = mx >= self.attackBtn.x and mx <= self.attackBtn.x + self.attackBtn.width and
                            my >= self.attackBtn.y and my <= self.attackBtn.y + self.attackBtn.height
+
+    if self.charScreenOpen then
+        local screenW = screenWidth
+        local screenH = screenHeight
+        local cx = screenW / 2
+        local cy = screenH / 2
+        local bw = 280
+        local bh = 260
+        local btnSize = 22
+        local btnX = cx + bw / 2 - 35
+        local baseY = cy - bh / 2 + 64
+
+        for i, btn in ipairs(self.statBtns) do
+            local btnY = baseY + (i - 1) * 26
+            btn.hover = mx >= btnX and mx <= btnX + btnSize and
+                        my >= btnY and my <= btnY + btnSize
+        end
+    end
 
     for i = #self.damageNumbers, 1, -1 do
         local dmg = self.damageNumbers[i]
@@ -187,8 +211,6 @@ function UI:drawDamageVignette()
     local alpha = self.damageVignette / 0.4 * 0.35
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
-    local cx = screenW / 2
-    local cy = screenH / 2
 
     for i = 1, 8 do
         local a = alpha * (1 - i / 10)
@@ -239,7 +261,7 @@ end
 function UI:draw(player, enemyCount, score, goldCount, camera)
     self:drawPlayerHealthBar(player)
     self:drawXPBar(player)
-    self:drawAttackButton()
+    self:drawAttackButton(player)
     self:drawDamageNumbers(camera)
     self:drawXPNumbers(camera)
     self:drawLevelUpPopup()
@@ -266,33 +288,20 @@ function UI:drawLevelUpPopup()
 
     love.graphics.setFont(levelUpFont)
 
-    local title = "¡Subiste de nivel!"
+    local title = "¡Subiste de nivel!  +" .. 3 .. " puntos"
     local tw = levelUpFont:getWidth(title)
 
-    love.graphics.setColor(0, 0, 0, alpha * 0.75)
-    love.graphics.rectangle("fill", cx - tw / 2 - 24, y - 10, tw + 48, 52, 8, 8)
+    love.graphics.setColor(0, 0, 0, alpha * 0.8)
+    love.graphics.rectangle("fill", cx - tw / 2 - 24, y - 10, tw + 48, 40, 8, 8)
 
     love.graphics.setColor(0.2, 0.1, 0.0, alpha)
     love.graphics.printf(title, cx - tw / 2, y, tw, "center")
     love.graphics.setColor(1, 0.85, 0.1, alpha)
     love.graphics.printf(title, cx - tw / 2 - 1, y - 1, tw, "center")
 
-    love.graphics.setFont(smallFont)
-    local iconY = y + 27
-    local groupW = 56
-    local totalW = groupW * 3
-    local startX = cx - totalW / 2
-
-    local function drawStatGroup(x, icon, label, iconTint)
-        love.graphics.setColor(iconTint[1], iconTint[2], iconTint[3], alpha)
-        love.graphics.draw(icon, x, iconY)
-        love.graphics.setColor(1, 1, 1, alpha)
-        love.graphics.print(label, x + 17, iconY + 1)
-    end
-
-    drawStatGroup(startX, iconSword, "+1", {0.6, 0.7, 1.0})
-    drawStatGroup(startX + groupW, iconShield, "+1", {0.6, 0.7, 1.0})
-    drawStatGroup(startX + groupW * 2, iconCrit, "+0.2%", {1, 0.85, 0.1})
+    love.graphics.setFont(tinyFont)
+    love.graphics.setColor(0.6, 0.8, 0.6, alpha)
+    love.graphics.printf("Abre el panel de stats (C) para asignar", 0, y + 22, screenW, "center")
 end
 
 function UI:drawPlayerHealthBar(player)
@@ -362,7 +371,7 @@ function UI:drawXPBar(player)
     love.graphics.print(string.format("%.1f%%", player.critChance * 100), barX + 96, statsY)
 end
 
-function UI:drawAttackButton()
+function UI:drawAttackButton(player)
     local btn = self.attackBtn
 
     if btn.pressed then
@@ -377,9 +386,19 @@ function UI:drawAttackButton()
     love.graphics.setColor(1, 1, 1)
     love.graphics.rectangle("line", btn.x, btn.y, btn.width, btn.height, 10, 10)
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.printf("ATK", btn.x, btn.y + 30, btn.width, "center")
-    love.graphics.printf("[SPACE]", btn.x, btn.y + 50, btn.width, "center")
+    if player and player.isCharging then
+        local ratio = player:getChargeRatio()
+        love.graphics.setColor(1, 0.8, 0.1, 0.3 + ratio * 0.4)
+        love.graphics.rectangle("fill", btn.x + 4, btn.y + 4, btn.width - 8, (btn.height - 8) * ratio, 6, 6)
+
+        love.graphics.setColor(1, 0.6, 0.1)
+        love.graphics.printf("CHARGE", btn.x, btn.y + 25, btn.width, "center")
+        love.graphics.printf(math.floor(ratio * 100) .. "%", btn.x, btn.y + 45, btn.width, "center")
+    else
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf("ATK", btn.x, btn.y + 30, btn.width, "center")
+        love.graphics.printf("[CLICK]", btn.x, btn.y + 50, btn.width, "center")
+    end
 end
 
 function UI:drawDamageNumbers(camera)
@@ -471,18 +490,31 @@ end
 
 function UI:drawControls()
     love.graphics.setColor(1, 1, 1, 0.5)
-    love.graphics.print("WASD: Mover | SHIFT: Correr | SPACE/Click: Atacar | C: Stats | TAB: Inventario", 20, love.graphics.getHeight() - 25)
+    love.graphics.print("WASD: Mover | SHIFT: Correr | Click: Atacar/Cargar | ESPACIO: Dash | C: Stats | TAB: Inventario", 20, love.graphics.getHeight() - 25)
 end
 
 function UI:isAttackPressed()
     return self.attackBtn.pressed
 end
 
-function UI:mousepressed(x, y, button)
+function UI:mousepressed(x, y, button, player)
     if button == 1 and self.attackBtn.hover then
         self.attackBtn.pressed = true
+        if player then
+            player:startCharge()
+        end
         return true
     end
+
+    if button == 1 and self.charScreenOpen and player then
+        for i, btn in ipairs(self.statBtns) do
+            if btn.hover and player.statPoints > 0 then
+                player:allocateStat(btn.stat)
+                return true
+            end
+        end
+    end
+
     return false
 end
 
@@ -507,10 +539,10 @@ function UI:drawCharScreen(player)
     local screenH = love.graphics.getHeight()
     local cx = screenW / 2
     local cy = screenH / 2
-    local bw = 260
-    local bh = 300
+    local bw = 280
+    local bh = 260
 
-    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.setColor(0, 0, 0, 0.88)
     love.graphics.rectangle("fill", cx - bw / 2, cy - bh / 2, bw, bh, 8, 8)
     love.graphics.setColor(0.3, 0.25, 0.15)
     love.graphics.rectangle("line", cx - bw / 2, cy - bh / 2, bw, bh, 8, 8)
@@ -522,62 +554,64 @@ function UI:drawCharScreen(player)
     love.graphics.setFont(statFont)
     local leftX = cx - bw / 2 + 15
     local rightX = cx + 10
+    local btnX = cx + bw / 2 - 35
+    local btnSize = 22
     local y = cy - bh / 2 + 40
 
     love.graphics.setColor(1, 1, 1)
     love.graphics.print("Nivel: " .. player.level, leftX, y)
+    love.graphics.setColor(0.5, 0.8, 0.5)
     love.graphics.print("Puntos: " .. player.statPoints, rightX, y)
-    y = y + 20
-
-    love.graphics.setColor(0.9, 0.3, 0.2)
-    love.graphics.draw(iconStr, leftX, y)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Fuerza: " .. player.strength, leftX + 18, y + 1)
-    love.graphics.setColor(0.8, 0.8, 0.8)
-    love.graphics.print("+" .. string.format("%.1f", player.strength * 0.5) .. " ATK", rightX, y + 1)
     y = y + 24
 
-    love.graphics.setColor(0.3, 0.8, 0.3)
-    love.graphics.draw(iconAgi, leftX, y)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Agilidad: " .. player.agility, leftX + 18, y + 1)
-    love.graphics.setColor(0.8, 0.8, 0.8)
-    love.graphics.print("+" .. player.agility * 15 .. " SPD", rightX, y + 1)
-    y = y + 24
+    local stats = {
+        {icon = iconStr, name = "Fuerza", val = player.strength, bonus = "+" .. string.format("%.1f", player.strength * 0.5) .. " ATK", color = {0.9, 0.3, 0.2}},
+        {icon = iconAgi, name = "Agilidad", val = player.agility, bonus = "+" .. player.agility * 15 .. " SPD", color = {0.3, 0.8, 0.3}},
+        {icon = iconInt, name = "Inteligencia", val = player.intelligence, bonus = "+" .. player.intelligence .. " MP", color = {0.4, 0.5, 1.0}},
+        {icon = iconCon, name = "Constitucion", val = player.constitution, bonus = "+" .. player.constitution * 10 .. " HP", color = {0.8, 0.6, 0.2}},
+    }
 
-    love.graphics.setColor(0.4, 0.5, 1.0)
-    love.graphics.draw(iconInt, leftX, y)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Inteligencia: " .. player.intelligence, leftX + 18, y + 1)
-    love.graphics.setColor(0.8, 0.8, 0.8)
-    love.graphics.print("+" .. player.intelligence .. " MP", rightX, y + 1)
-    y = y + 24
+    for i, s in ipairs(stats) do
+        love.graphics.setColor(s.color[1], s.color[2], s.color[3])
+        love.graphics.draw(s.icon, leftX, y)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(s.name .. ": " .. s.val, leftX + 18, y + 1)
+        love.graphics.setColor(0.8, 0.8, 0.8)
+        love.graphics.print(s.bonus, rightX, y + 1)
 
-    love.graphics.setColor(0.8, 0.6, 0.2)
-    love.graphics.draw(iconCon, leftX, y)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Constitucion: " .. player.constitution, leftX + 18, y + 1)
-    love.graphics.setColor(0.8, 0.8, 0.8)
-    love.graphics.print("+" .. player.constitution * 10 .. " HP", rightX, y + 1)
-    y = y + 30
+        local btn = self.statBtns[i]
+        local canAdd = player.statPoints > 0
+        if btn.hover and canAdd then
+            love.graphics.setColor(0.4, 0.7, 0.4)
+        elseif canAdd then
+            love.graphics.setColor(0.3, 0.5, 0.3)
+        else
+            love.graphics.setColor(0.3, 0.3, 0.3)
+        end
+        love.graphics.rectangle("fill", btnX, y, btnSize, btnSize, 4, 4)
 
+        love.graphics.setColor(canAdd and {1, 1, 1} or {0.5, 0.5, 0.5})
+        love.graphics.rectangle("line", btnX, y, btnSize, btnSize, 4, 4)
+
+        love.graphics.setFont(statFont)
+        love.graphics.setColor(canAdd and {1, 1, 1} or {0.5, 0.5, 0.5})
+        love.graphics.printf("+", btnX, y + 3, btnSize, "center")
+
+        y = y + 26
+    end
+
+    y = y + 6
     love.graphics.setColor(0.4, 0.4, 0.4)
     love.graphics.rectangle("fill", leftX, y, bw - 30, 1)
     y = y + 10
 
     love.graphics.setFont(tinyFont)
     love.graphics.setColor(0.6, 0.6, 0.6)
-    love.graphics.print("Presiona 1/2/3/4 para asignar puntos", leftX, y)
+    love.graphics.print("Click en + para asignar puntos", leftX, y)
     love.graphics.print("Presiona C para cerrar", leftX, y + 14)
 end
 
 function UI:handleCharInput(key, player)
-    if not self.charScreenOpen then return false end
-    if key == "1" then return player:allocateStat("str")
-    elseif key == "2" then return player:allocateStat("agi")
-    elseif key == "3" then return player:allocateStat("int")
-    elseif key == "4" then return player:allocateStat("con")
-    end
     return false
 end
 

@@ -1,5 +1,6 @@
 local SceneManager = require("scene_manager")
 local MenuScene = require("menu_scene")
+local MapSelectionScene = require("map_selection_scene")
 local GameScene = require("game_scene")
 
 function love.load()
@@ -7,6 +8,7 @@ function love.load()
     love.window.setTitle("Heroes Lore - Clone")
 
     SceneManager.register("menu", MenuScene)
+    SceneManager.register("map_select", MapSelectionScene)
     SceneManager.register("game", GameScene)
     SceneManager.switch("menu")
 end
@@ -29,6 +31,10 @@ end
  
 function love.mousepressed(x, y, button)
     SceneManager.mousepressed(x, y, button)
+end
+
+function love.wheelmoved(x, y)
+    SceneManager.wheelmoved(x, y)
 end
 
 function love.mousereleased(x, y, button)

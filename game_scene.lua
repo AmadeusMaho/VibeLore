@@ -757,8 +757,8 @@ function GameScene.keypressed(key)
         return
     end
 
-    if ui:isCharScreenOpen() then
-        ui:handleCharInput(key, player)
+    if key == "space" then
+        player:startDash()
         return
     end
 
@@ -783,8 +783,17 @@ function GameScene.mousepressed(x, y, button)
     end
 
     if button == 1 and not gameOver and not Shop.getIsOpen() and not Inventory.getIsOpen() and not ui:isCharScreenOpen() then
-        if player:attack() then
-            local hitEnemies = Combat.resolveAttack(player, enemies, boss)
+        player:startCharge()
+    end
+
+    ui:mousepressed(x, y, button, player)
+end
+
+function GameScene.mousereleased(x, y, button)
+    if button == 1 and player and player.isCharging then
+        local chargedDamage = player:releaseCharge()
+        if chargedDamage > 0 then
+            local hitEnemies = Combat.resolveAttack(player, enemies, boss, chargedDamage)
             for _, hit in ipairs(hitEnemies) do
                 ui:addDamageNumber(hit.enemy.x, hit.enemy.y, hit.damage, true, hit.isCrit)
                 ui:shake(hit.isCrit and 5 or 3, hit.isCrit and 0.12 or 0.08)
@@ -804,7 +813,6 @@ function GameScene.mousepressed(x, y, button)
                         totalKills = (totalKills or 0) + 1
                         if not bossSpawned then
                             slimeKills = slimeKills + 1
-                            print("[MOUSE] totalKills=" .. tostring(totalKills) .. " slimeKills=" .. tostring(slimeKills))
                             if slimeKills >= 5 then
                                 spawnBoss()
                             end
@@ -830,10 +838,6 @@ function GameScene.mousepressed(x, y, button)
         end
     end
 
-    ui:mousepressed(x, y, button)
-end
-
-function GameScene.mousereleased(x, y, button)
     ui:mousereleased(x, y, button)
 end
 

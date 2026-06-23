@@ -7,7 +7,7 @@ function Combat.checkCollision(a, b)
            a.y + a.height > b.y
 end
 
-function Combat.resolveAttack(player, enemies, boss)
+function Combat.resolveAttack(player, enemies, boss, chargedDamage)
     local hitbox = player:getAttackHitbox()
     if not hitbox then return {} end
 
@@ -25,7 +25,7 @@ function Combat.resolveAttack(player, enemies, boss)
                 kby = (dy / dist) * 25
             end
 
-            local baseDmg = math.floor(player.attackDamage + love.math.random(0, 1))
+            local baseDmg = chargedDamage or math.floor(player.attackDamage + love.math.random(0, 1))
             local isCrit = math.random() < player.critChance
             local dmg = baseDmg
             if isCrit then
@@ -49,7 +49,7 @@ function Combat.resolveAttack(player, enemies, boss)
             kby = (dy / dist) * 25
         end
 
-        local baseDmg = math.floor(player.attackDamage + love.math.random(0, 1))
+        local baseDmg = chargedDamage or math.floor(player.attackDamage + love.math.random(0, 1))
         local isCrit = math.random() < player.critChance
         local dmg = baseDmg
         if isCrit then
