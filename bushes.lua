@@ -3,7 +3,7 @@ local Trees = require("trees")
 local Rocks = require("rocks")
 local Pond = require("pond")
 
-local BUSH_COUNT = 40
+local BUSH_COUNT = 14
 local SPAWN_SAFE_RADIUS = 250
 local MAP_PADDING = 100
 local FRAME_W = 128

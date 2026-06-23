@@ -1,7 +1,7 @@
 local Rocks = {}
 local Pond = require("pond")
 
-local ROCK_COUNT = 15
+local ROCK_COUNT = 8
 local TRUNK_WIDTH = 16
 local TRUNK_HEIGHT = 14
 local SPAWN_SAFE_RADIUS = 250

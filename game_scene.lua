@@ -48,6 +48,9 @@ local slimeKills
 local bossSpawned
 local bossDefeated
 local totalKills
+local decorations
+local decorationsFront
+local dayMode
 
 function GameScene.new()
     local self = setmetatable({}, GameScene)
@@ -87,6 +90,7 @@ function GameScene.enter()
     Rocks.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
     Bushes.load()
     Bushes.generate(MAP_WIDTH, MAP_HEIGHT, MAP_WIDTH / 2, MAP_HEIGHT / 2)
+    generateDecorations()
     spawnInitialEnemies()
 
     spawnTimer = 0
@@ -113,6 +117,7 @@ function GameScene.enter()
     bossSpawned = false
     bossDefeated = false
     totalKills = 0
+    dayMode = 1.0
 end
 
 local GRASS_TILE = 256
@@ -121,28 +126,105 @@ function generateGrassTexture()
     grassCanvas = love.graphics.newCanvas(GRASS_TILE, GRASS_TILE)
     love.graphics.setCanvas(grassCanvas)
 
-    love.graphics.setColor(0.22, 0.35, 0.12)
+    love.graphics.setColor(0.12, 0.22, 0.08)
     love.graphics.rectangle("fill", 0, 0, GRASS_TILE, GRASS_TILE)
 
-    for i = 1, 800 do
+    for i = 1, 600 do
         local x = love.math.random(0, GRASS_TILE)
         local y = love.math.random(0, GRASS_TILE)
-        local r = love.math.random(2, 6)
-        local g = 0.3 + love.math.random() * 0.15
-        local b = 0.08 + love.math.random() * 0.08
-        love.graphics.setColor(0.15 + love.math.random() * 0.12, g, b, 0.6)
+        local r = love.math.random(2, 5)
+        local g = 0.18 + love.math.random() * 0.12
+        local b = 0.05 + love.math.random() * 0.06
+        love.graphics.setColor(0.1 + love.math.random() * 0.1, g, b, 0.5)
         love.graphics.circle("fill", x, y, r)
     end
 
-    for i = 1, 400 do
+    for i = 1, 300 do
         local x = love.math.random(0, GRASS_TILE)
         local y = love.math.random(0, GRASS_TILE)
-        love.graphics.setColor(0.18, 0.28 + love.math.random() * 0.1, 0.08, 0.3)
-        love.graphics.rectangle("fill", x, y, love.math.random(3, 8), love.math.random(1, 3))
+        love.graphics.setColor(0.12, 0.2 + love.math.random() * 0.08, 0.06, 0.25)
+        love.graphics.rectangle("fill", x, y, love.math.random(2, 6), love.math.random(1, 3))
+    end
+
+    for i = 1, 80 do
+        local x = love.math.random(0, GRASS_TILE)
+        local y = love.math.random(0, GRASS_TILE)
+        local r = love.math.random(3, 8)
+        love.graphics.setColor(0.18 + love.math.random() * 0.08, 0.14 + love.math.random() * 0.06, 0.07, 0.4)
+        love.graphics.circle("fill", x, y, r)
+    end
+
+    for i = 1, 40 do
+        local x = love.math.random(0, GRASS_TILE)
+        local y = love.math.random(0, GRASS_TILE)
+        love.graphics.setColor(0.08, 0.15 + love.math.random() * 0.1, 0.04, 0.3)
+        love.graphics.circle("fill", x, y, love.math.random(1, 3))
     end
 
     love.graphics.setCanvas()
     grassCanvas:setFilter("nearest", "nearest")
+end
+
+function generateDecorations()
+    decorations = {}
+    decorationsFront = {}
+
+    for i = 1, 30 do
+        local baseX = math.random(20, MAP_WIDTH - 20)
+        local baseY = math.random(20, MAP_HEIGHT - 20)
+        local packSize = math.random(6, 7)
+        for j = 1, packSize do
+            local x = baseX + love.math.random(-30, 30)
+            local y = baseY + love.math.random(-30, 30)
+            local colors = {
+                {0.8, 0.2, 0.2}, {0.9, 0.8, 0.1}, {0.6, 0.3, 0.8},
+                {0.9, 0.5, 0.1}, {0.95, 0.95, 0.95}
+            }
+            local dec = {
+                x = x, y = y, type = 1,
+                color = colors[math.random(#colors)],
+                size = math.random(2, 4)
+            }
+            if not Trees.checkCollision(x - 5, y - 5, 10, 10) and
+               not Rocks.checkCollision(x - 5, y - 5, 10, 10) and
+               not Pond.checkCollision(x - 5, y - 5, 10, 10) then
+                if y <= MAP_HEIGHT / 2 then
+                    decorations[#decorations + 1] = dec
+                else
+                    decorationsFront[#decorationsFront + 1] = dec
+                end
+            end
+        end
+    end
+
+    for i = 1, 120 do
+        local x = math.random(20, MAP_WIDTH - 20)
+        local y = math.random(20, MAP_HEIGHT - 20)
+        local dtype = math.random(2, 4)
+        local dec = { x = x, y = y, type = dtype }
+
+        if dtype == 2 then
+            dec.color = {0.25 + love.math.random() * 0.1, 0.2 + love.math.random() * 0.08, 0.15}
+            dec.size = math.random(2, 5)
+        elseif dtype == 3 then
+            dec.color = {0.25, 0.18, 0.1}
+            dec.w = math.random(4, 8)
+            dec.h = math.random(3, 6)
+        else
+            dec.color = {0.15, 0.12, 0.08}
+            dec.size = love.math.random() * 0.5 + 0.5
+        end
+
+        if not Trees.checkCollision(x - 5, y - 5, 10, 10) and
+           not Rocks.checkCollision(x - 5, y - 5, 10, 10) and
+           not Pond.checkCollision(x - 5, y - 5, 10, 10) then
+            if y <= MAP_HEIGHT / 2 then
+                decorations[#decorations + 1] = dec
+            else
+                decorationsFront[#decorationsFront + 1] = dec
+            end
+        end
+    end
 end
 
 function generateCursor()
@@ -503,12 +585,25 @@ function GameScene.draw()
         love.graphics.rectangle("fill", 0, 0, MAP_WIDTH, MAP_HEIGHT)
     end
 
-    love.graphics.setColor(0.18, 0.25, 0.12)
+    love.graphics.setColor(0.15, 0.22, 0.1)
     love.graphics.rectangle("line", 10, 10, MAP_WIDTH - 20, MAP_HEIGHT - 20)
 
     Pond.draw()
 
     local entityY = player.y + player.height / 2
+
+    for _, dec in ipairs(decorations or {}) do
+        love.graphics.setColor(dec.color[1], dec.color[2], dec.color[3])
+        if dec.type == 1 then
+            love.graphics.circle("fill", dec.x, dec.y, dec.size)
+        elseif dec.type == 2 then
+            love.graphics.circle("fill", dec.x, dec.y, dec.size)
+        elseif dec.type == 3 then
+            love.graphics.rectangle("fill", dec.x - dec.w/2, dec.y - dec.h/2, dec.w, dec.h)
+        else
+            love.graphics.ellipse("fill", dec.x, dec.y, dec.size * 2, dec.size)
+        end
+    end
 
     for _, r in ipairs(Rocks.getAll()) do
         love.graphics.setColor(1, 1, 1)
@@ -547,6 +642,19 @@ function GameScene.draw()
     for _, prop in ipairs(allTrees) do
         if prop.y > entityY then
             prop.draw()
+        end
+    end
+
+    for _, dec in ipairs(decorationsFront or {}) do
+        love.graphics.setColor(dec.color[1], dec.color[2], dec.color[3])
+        if dec.type == 1 then
+            love.graphics.circle("fill", dec.x, dec.y, dec.size)
+        elseif dec.type == 2 then
+            love.graphics.circle("fill", dec.x, dec.y, dec.size)
+        elseif dec.type == 3 then
+            love.graphics.rectangle("fill", dec.x - dec.w/2, dec.y - dec.h/2, dec.w, dec.h)
+        else
+            love.graphics.ellipse("fill", dec.x, dec.y, dec.size * 2, dec.size)
         end
     end
 
@@ -597,6 +705,11 @@ function GameScene.draw()
 
     if crtShader then
         crtShader:send("time", love.timer.getTime())
+        local pcx = (player.x + player.width / 2 - camera.x) * camera.zoom
+        local pcy = (player.y + player.height / 2 - camera.y) * camera.zoom
+        crtShader:send("playerScreenPos", {pcx, pcy})
+        crtShader:send("playerLightRadius", 250 * camera.zoom)
+        crtShader:send("dayMode", dayMode or 1.0)
         love.graphics.setShader(crtShader)
     end
     love.graphics.setColor(1, 1, 1)
@@ -651,6 +764,11 @@ function GameScene.keypressed(key)
 
     if key == "r" and gameOver then
         GameScene.enter()
+        return
+    end
+
+    if key == "n" then
+        dayMode = dayMode == 1.0 and 0.0 or 1.0
         return
     end
 end

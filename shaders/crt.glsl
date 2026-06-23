@@ -1,4 +1,7 @@
 extern float time;
+extern vec2 playerScreenPos;
+extern float playerLightRadius;
+extern float dayMode;
 
 vec2 barrelDistort(vec2 uv, float strength) {
     vec2 centered = uv - 0.5;
@@ -30,6 +33,20 @@ vec4 effect(vec4 color, Image texture, vec2 tex_coords, vec2 screen_coords) {
         texcolor *= 0.96;
     }
 
+    float dayAmbient = 1.0;
+    float nightAmbient = 0.45;
+    float ambient = mix(nightAmbient, dayAmbient, dayMode);
+
+    vec2 toPlayer = playerScreenPos - screen_coords;
+    float playerDist = length(toPlayer);
+    float playerLight = smoothstep(playerLightRadius, playerLightRadius * 0.25, playerDist);
+    float nightLight = playerLight * 0.55;
+    float dayLight = 0.0;
+    float extraLight = mix(nightLight, dayLight, dayMode);
+
+    float light = ambient + extraLight;
+    texcolor *= light;
+
     float grain = rand(uv + fract(time)) * 0.03 - 0.015;
     texcolor += grain;
 
@@ -37,7 +54,15 @@ vec4 effect(vec4 color, Image texture, vec2 tex_coords, vec2 screen_coords) {
     float vignette = 1.0 - dot(center, center) * 1.0;
     vignette = clamp(vignette, 0.0, 1.0);
     vignette = smoothstep(0.0, 1.0, vignette);
-    texcolor *= mix(0.65, 1.0, vignette);
+    float nightVignette = mix(0.55, 1.0, vignette);
+    float dayVignette = mix(0.8, 1.0, vignette);
+    float vig = mix(nightVignette, dayVignette, dayMode);
+    texcolor *= vig;
+
+    float nightFlicker = sin(time * 3.0) * 0.01 + 1.0;
+    float dayFlicker = 1.0;
+    float flicker = mix(nightFlicker, dayFlicker, dayMode);
+    texcolor *= flicker;
 
     texcolor *= 1.05;
 

@@ -1,7 +1,7 @@
 local Trees = {}
 local Pond = require("pond")
 
-local TREE_COUNT = 35
+local TREE_COUNT = 17
 local TRUNK_WIDTH = 20
 local TRUNK_HEIGHT = 22
 local SPAWN_SAFE_RADIUS = 250
